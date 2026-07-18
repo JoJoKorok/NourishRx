@@ -33,8 +33,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
-import android.widget.Spinner;
-import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -825,6 +823,7 @@ public class MainActivity extends Activity {
                 existing.instructions,
                 existing.firstDoseMinutes,
                 existing.dosesPerDay,
+                existing.doseMinutes(),
                 existing.quantity,
                 existing.refillThreshold,
                 existing.active,
@@ -842,27 +841,23 @@ public class MainActivity extends Activity {
         EditText dosageField = field("Dosage", medication.dosage, InputType.TYPE_CLASS_TEXT);
         EditText instructionsField = field("Instructions", medication.instructions, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
 
-        final int[] selectedMinutes = {medication.firstDoseMinutes};
-        EditText timeField = field("First dose time", Medication.formatMinutes(selectedMinutes[0]), InputType.TYPE_NULL);
-        timeField.setFocusable(false);
-        timeField.setOnClickListener(view -> showTimePicker(timeField, selectedMinutes));
+        ArrayList<Integer> selectedDoseMinutes = new ArrayList<>(medication.doseMinutes());
+        TextView frequencySummary = text("", 13, COLOR_MUTED, Typeface.BOLD);
+        LinearLayout doseTimesList = new LinearLayout(this);
+        doseTimesList.setOrientation(LinearLayout.VERTICAL);
+        final Runnable[] renderDoseTimes = new Runnable[1];
+        renderDoseTimes[0] = () -> renderDoseTimeRows(doseTimesList, frequencySummary, selectedDoseMinutes, renderDoseTimes[0]);
+        renderDoseTimes[0].run();
 
-        Spinner dosesSpinner = new Spinner(this);
-        String[] doseOptions = {
-                "1 dose/day",
-                "2 doses/day",
-                "3 doses/day",
-                "4 doses/day",
-                "5 doses/day",
-                "6 doses/day",
-                "7 doses/day",
-                "8 doses/day"
-        };
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, doseOptions);
-        dosesSpinner.setAdapter(adapter);
-        dosesSpinner.setSelection(Math.max(0, medication.dosesPerDay - 1));
-        dosesSpinner.setPadding(dp(10), 0, dp(10), 0);
-        dosesSpinner.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
+        Button addDoseTime = button("+ Dose time", COLOR_GREEN, COLOR_GREEN_SOFT);
+        addDoseTime.setOnClickListener(view -> {
+            if (selectedDoseMinutes.size() >= Medication.MAX_DOSES_PER_DAY) {
+                Toast.makeText(this, "Maximum is " + Medication.MAX_DOSES_PER_DAY + " doses per day.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            selectedDoseMinutes.add(nextSuggestedDoseTime(selectedDoseMinutes));
+            renderDoseTimes[0].run();
+        });
 
         EditText quantityField = field("Current quantity", String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
         EditText thresholdField = field("Refill threshold", String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
@@ -875,9 +870,15 @@ public class MainActivity extends Activity {
         form.addView(nameField);
         form.addView(dosageField);
         form.addView(instructionsField);
-        form.addView(timeField);
         form.addView(fieldLabel("Frequency"));
-        form.addView(dosesSpinner);
+        form.addView(frequencySummary);
+        form.addView(doseTimesList);
+        LinearLayout.LayoutParams addDoseParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        addDoseParams.topMargin = dp(8);
+        form.addView(addDoseTime, addDoseParams);
         form.addView(quantityField);
         form.addView(thresholdField);
         form.addView(activeBox);
@@ -912,8 +913,9 @@ public class MainActivity extends Activity {
                         name,
                         dosage,
                         instructionsField.getText().toString(),
-                        selectedMinutes[0],
-                        dosesSpinner.getSelectedItemPosition() + 1,
+                        selectedDoseMinutes.get(0),
+                        selectedDoseMinutes.size(),
+                        selectedDoseMinutes,
                         parseInt(quantityField, 0),
                         parseInt(thresholdField, 0),
                         activeBox.isChecked(),
@@ -968,20 +970,102 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
-    private void showTimePicker(EditText timeField, int[] selectedMinutes) {
-        int hour = selectedMinutes[0] / 60;
-        int minute = selectedMinutes[0] % 60;
+    private void renderDoseTimeRows(
+            LinearLayout container,
+            TextView frequencySummary,
+            ArrayList<Integer> doseMinutes,
+            Runnable refresh
+    ) {
+        normalizeDoseTimes(doseMinutes);
+        frequencySummary.setText("Frequency: " + plural(doseMinutes.size(), "dose/day", "doses/day"));
+        container.removeAllViews();
+
+        for (int i = 0; i < doseMinutes.size(); i++) {
+            int index = i;
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(8), 0, 0);
+
+            TextView label = text("Dose " + (index + 1), 14, COLOR_INK, Typeface.BOLD);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(72), dp(44));
+            row.addView(label, labelParams);
+
+            Button time = button(Medication.formatMinutes(doseMinutes.get(index)), COLOR_BLUE, COLOR_BLUE_SOFT);
+            time.setOnClickListener(view -> showDoseTimePicker(doseMinutes, index, refresh));
+            row.addView(time, new LinearLayout.LayoutParams(0, dp(44), 1));
+
+            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
+            remove.setEnabled(doseMinutes.size() > 1);
+            remove.setAlpha(doseMinutes.size() > 1 ? 1.0f : 0.45f);
+            remove.setOnClickListener(view -> {
+                if (doseMinutes.size() <= 1) {
+                    Toast.makeText(this, "Keep at least one dose time.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                doseMinutes.remove(index);
+                refresh.run();
+            });
+            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(dp(96), dp(44));
+            removeParams.leftMargin = dp(8);
+            row.addView(remove, removeParams);
+
+            container.addView(row);
+        }
+    }
+
+    private void showDoseTimePicker(ArrayList<Integer> doseMinutes, int index, Runnable refresh) {
+        int existingMinutes = doseMinutes.get(index);
+        int hour = existingMinutes / 60;
+        int minute = existingMinutes % 60;
         TimePickerDialog dialog = new TimePickerDialog(
                 this,
                 (view, selectedHour, selectedMinute) -> {
-                    selectedMinutes[0] = (selectedHour * 60) + selectedMinute;
-                    timeField.setText(Medication.formatMinutes(selectedMinutes[0]));
+                    int newMinutes = Medication.normalizeMinutes((selectedHour * 60) + selectedMinute);
+                    for (int i = 0; i < doseMinutes.size(); i++) {
+                        if (i != index && doseMinutes.get(i) == newMinutes) {
+                            Toast.makeText(this, "That dose time is already scheduled.", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    }
+                    doseMinutes.set(index, newMinutes);
+                    refresh.run();
                 },
                 hour,
                 minute,
                 false
         );
         dialog.show();
+    }
+
+    private int nextSuggestedDoseTime(List<Integer> doseMinutes) {
+        if (doseMinutes.isEmpty()) {
+            return 8 * 60;
+        }
+
+        ArrayList<Integer> sorted = new ArrayList<>(doseMinutes);
+        normalizeDoseTimes(sorted);
+        int candidate = Medication.normalizeMinutes(sorted.get(sorted.size() - 1) + (4 * 60));
+        for (int attempt = 0; attempt < Medication.MAX_DOSES_PER_DAY; attempt++) {
+            if (!sorted.contains(candidate)) {
+                return candidate;
+            }
+            candidate = Medication.normalizeMinutes(candidate + 60);
+        }
+        return 8 * 60;
+    }
+
+    private void normalizeDoseTimes(ArrayList<Integer> doseMinutes) {
+        if (doseMinutes.isEmpty()) {
+            doseMinutes.add(8 * 60);
+        }
+        for (int i = 0; i < doseMinutes.size(); i++) {
+            doseMinutes.set(i, Medication.normalizeMinutes(doseMinutes.get(i)));
+        }
+        doseMinutes.sort(Integer::compareTo);
+        while (doseMinutes.size() > Medication.MAX_DOSES_PER_DAY) {
+            doseMinutes.remove(doseMinutes.size() - 1);
+        }
     }
 
     private void confirmDelete(Medication medication) {

@@ -1,5 +1,8 @@
 package com.example.medicationmanager.data;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -12,6 +15,7 @@ import java.util.Locale;
 
 public class Medication {
     public static final int MINUTES_PER_DAY = 24 * 60;
+    public static final int MAX_DOSES_PER_DAY = 24;
 
     public long id;
     public long profileId;
@@ -20,6 +24,7 @@ public class Medication {
     public String instructions;
     public int firstDoseMinutes;
     public int dosesPerDay;
+    public List<Integer> customDoseMinutes;
     public int quantity;
     public int refillThreshold;
     public boolean active;
@@ -38,13 +43,44 @@ public class Medication {
             boolean active,
             long createdAt
     ) {
+        this(
+                id,
+                profileId,
+                name,
+                dosage,
+                instructions,
+                firstDoseMinutes,
+                dosesPerDay,
+                null,
+                quantity,
+                refillThreshold,
+                active,
+                createdAt
+        );
+    }
+
+    public Medication(
+            long id,
+            long profileId,
+            String name,
+            String dosage,
+            String instructions,
+            int firstDoseMinutes,
+            int dosesPerDay,
+            List<Integer> doseMinutes,
+            int quantity,
+            int refillThreshold,
+            boolean active,
+            long createdAt
+    ) {
         this.id = id;
         this.profileId = profileId > 0 ? profileId : 1;
         this.name = clean(name);
         this.dosage = clean(dosage);
         this.instructions = clean(instructions);
-        this.firstDoseMinutes = normalizeMinutes(firstDoseMinutes);
-        this.dosesPerDay = clamp(dosesPerDay, 1, 8);
+        this.customDoseMinutes = sanitizeDoseMinutes(doseMinutes, firstDoseMinutes, dosesPerDay);
+        this.firstDoseMinutes = this.customDoseMinutes.get(0);
+        this.dosesPerDay = this.customDoseMinutes.size();
         this.quantity = Math.max(0, quantity);
         this.refillThreshold = Math.max(0, refillThreshold);
         this.active = active;
@@ -68,13 +104,7 @@ public class Medication {
     }
 
     public List<Integer> doseMinutes() {
-        int interval = MINUTES_PER_DAY / dosesPerDay;
-        List<Integer> minutes = new ArrayList<>();
-        for (int i = 0; i < dosesPerDay; i++) {
-            minutes.add(normalizeMinutes(firstDoseMinutes + (i * interval)));
-        }
-        Collections.sort(minutes);
-        return minutes;
+        return new ArrayList<>(customDoseMinutes);
     }
 
     public List<Long> scheduledDoseTimes(LocalDate date, ZoneId zoneId) {
@@ -120,6 +150,31 @@ public class Medication {
         return dosesPerDay == 1 ? "1 dose/day" : dosesPerDay + " doses/day";
     }
 
+    public static String serializeDoseMinutes(List<Integer> doseMinutes) {
+        JSONArray array = new JSONArray();
+        for (int minute : sanitizeDoseMinutes(doseMinutes, 8 * 60, 1)) {
+            array.put(minute);
+        }
+        return array.toString();
+    }
+
+    public static List<Integer> parseDoseMinutes(String value) {
+        List<Integer> minutes = new ArrayList<>();
+        if (value == null || value.trim().isEmpty()) {
+            return minutes;
+        }
+
+        try {
+            JSONArray array = new JSONArray(value);
+            for (int i = 0; i < array.length(); i++) {
+                minutes.add(array.getInt(i));
+            }
+        } catch (JSONException exception) {
+            return new ArrayList<>();
+        }
+        return sanitizeDoseMinutes(minutes, 8 * 60, 1);
+    }
+
     public static String formatMinutes(int minutes) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault());
         return LocalDate.now()
@@ -131,6 +186,40 @@ public class Medication {
     public static int normalizeMinutes(int minutes) {
         int result = minutes % MINUTES_PER_DAY;
         return result < 0 ? result + MINUTES_PER_DAY : result;
+    }
+
+    private static List<Integer> defaultDoseMinutes(int firstDoseMinutes, int dosesPerDay) {
+        int safeDosesPerDay = clamp(dosesPerDay, 1, MAX_DOSES_PER_DAY);
+        int interval = MINUTES_PER_DAY / safeDosesPerDay;
+        List<Integer> minutes = new ArrayList<>();
+        for (int i = 0; i < safeDosesPerDay; i++) {
+            minutes.add(normalizeMinutes(firstDoseMinutes + (i * interval)));
+        }
+        Collections.sort(minutes);
+        return minutes;
+    }
+
+    private static List<Integer> sanitizeDoseMinutes(List<Integer> doseMinutes, int fallbackFirstDoseMinutes, int fallbackDosesPerDay) {
+        List<Integer> minutes = new ArrayList<>();
+        if (doseMinutes != null) {
+            for (Integer minute : doseMinutes) {
+                if (minute != null) {
+                    int normalized = normalizeMinutes(minute);
+                    if (!minutes.contains(normalized)) {
+                        minutes.add(normalized);
+                    }
+                }
+            }
+        }
+
+        if (minutes.isEmpty()) {
+            minutes.addAll(defaultDoseMinutes(fallbackFirstDoseMinutes, fallbackDosesPerDay));
+        }
+        Collections.sort(minutes);
+        if (minutes.size() > MAX_DOSES_PER_DAY) {
+            return new ArrayList<>(minutes.subList(0, MAX_DOSES_PER_DAY));
+        }
+        return minutes;
     }
 
     private static int clamp(int value, int min, int max) {

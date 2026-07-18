@@ -16,7 +16,7 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 4;
+    private static final int DATABASE_VERSION = 5;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
@@ -39,6 +39,7 @@ public class MedicationStore extends SQLiteOpenHelper {
                 "instructions TEXT NOT NULL DEFAULT '', " +
                 "first_dose_minutes INTEGER NOT NULL, " +
                 "doses_per_day INTEGER NOT NULL, " +
+                "dose_minutes TEXT NOT NULL DEFAULT '', " +
                 "quantity INTEGER NOT NULL, " +
                 "refill_threshold INTEGER NOT NULL, " +
                 "active INTEGER NOT NULL DEFAULT 1, " +
@@ -80,6 +81,9 @@ public class MedicationStore extends SQLiteOpenHelper {
             addProfileColumnIfMissing(db, "avatar_offset_x", "REAL NOT NULL DEFAULT 0.0");
             addProfileColumnIfMissing(db, "avatar_offset_y", "REAL NOT NULL DEFAULT 0.0");
             addProfileColumnIfMissing(db, "avatar_aspect_ratio", "REAL NOT NULL DEFAULT 1.0");
+        }
+        if (oldVersion < 5) {
+            addMedicationColumnIfMissing(db, "dose_minutes", "TEXT NOT NULL DEFAULT ''");
         }
     }
 
@@ -373,6 +377,7 @@ public class MedicationStore extends SQLiteOpenHelper {
         values.put("instructions", medication.instructions);
         values.put("first_dose_minutes", medication.firstDoseMinutes);
         values.put("doses_per_day", medication.dosesPerDay);
+        values.put("dose_minutes", Medication.serializeDoseMinutes(medication.doseMinutes()));
         values.put("quantity", medication.quantity);
         values.put("refill_threshold", medication.refillThreshold);
         values.put("active", medication.active ? 1 : 0);
@@ -423,6 +428,12 @@ public class MedicationStore extends SQLiteOpenHelper {
     private void addProfileColumnIfMissing(SQLiteDatabase db, String columnName, String definition) {
         if (!columnExists(db, TABLE_PROFILES, columnName)) {
             db.execSQL("ALTER TABLE " + TABLE_PROFILES + " ADD COLUMN " + columnName + " " + definition);
+        }
+    }
+
+    private void addMedicationColumnIfMissing(SQLiteDatabase db, String columnName, String definition) {
+        if (!columnExists(db, TABLE_MEDICATIONS, columnName)) {
+            db.execSQL("ALTER TABLE " + TABLE_MEDICATIONS + " ADD COLUMN " + columnName + " " + definition);
         }
     }
 
@@ -484,6 +495,7 @@ public class MedicationStore extends SQLiteOpenHelper {
                 cursor.getString(cursor.getColumnIndexOrThrow("instructions")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("first_dose_minutes")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("doses_per_day")),
+                Medication.parseDoseMinutes(stringValue(cursor, "dose_minutes", "")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("quantity")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("refill_threshold")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("active")) == 1,
