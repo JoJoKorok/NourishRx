@@ -7,10 +7,11 @@ local.properties
 /app/build/
 
 *.apk
-!releases/**/*.apk
 *.aab
 *.ap_
 *.dex
+
+releases/
 
 *.jks
 *.keystore
