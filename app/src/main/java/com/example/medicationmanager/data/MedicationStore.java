@@ -16,7 +16,7 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 4;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
@@ -70,6 +70,16 @@ public class MedicationStore extends SQLiteOpenHelper {
                 db.execSQL("ALTER TABLE " + TABLE_MEDICATIONS +
                         " ADD COLUMN profile_id INTEGER NOT NULL DEFAULT " + defaultProfileId);
             }
+        }
+        if (oldVersion < 3 && !columnExists(db, TABLE_PROFILES, "avatar_uri")) {
+            db.execSQL("ALTER TABLE " + TABLE_PROFILES +
+                    " ADD COLUMN avatar_uri TEXT NOT NULL DEFAULT ''");
+        }
+        if (oldVersion < 4) {
+            addProfileColumnIfMissing(db, "avatar_zoom", "REAL NOT NULL DEFAULT 1.0");
+            addProfileColumnIfMissing(db, "avatar_offset_x", "REAL NOT NULL DEFAULT 0.0");
+            addProfileColumnIfMissing(db, "avatar_offset_y", "REAL NOT NULL DEFAULT 0.0");
+            addProfileColumnIfMissing(db, "avatar_aspect_ratio", "REAL NOT NULL DEFAULT 1.0");
         }
     }
 
@@ -130,6 +140,11 @@ public class MedicationStore extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put("name", cleanName);
+        values.put("avatar_uri", "");
+        values.put("avatar_zoom", 1.0f);
+        values.put("avatar_offset_x", 0.0f);
+        values.put("avatar_offset_y", 0.0f);
+        values.put("avatar_aspect_ratio", 1.0f);
         values.put("created_at", System.currentTimeMillis());
         return db.insert(TABLE_PROFILES, null, values);
     }
@@ -144,6 +159,32 @@ public class MedicationStore extends SQLiteOpenHelper {
         ContentValues values = new ContentValues();
         values.put("name", cleanName);
         db.update(TABLE_PROFILES, values, "id = ?", new String[]{String.valueOf(profileId)});
+    }
+
+    public void updateProfileAvatar(
+            long profileId,
+            String avatarUri,
+            float zoom,
+            float offsetX,
+            float offsetY,
+            float aspectRatio
+    ) {
+        if (profileId <= 0) {
+            return;
+        }
+
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("avatar_uri", avatarUri == null ? "" : avatarUri.trim());
+        values.put("avatar_zoom", clamp(zoom, 1.0f, 3.0f, 1.0f));
+        values.put("avatar_offset_x", clamp(offsetX, -1.0f, 1.0f, 0.0f));
+        values.put("avatar_offset_y", clamp(offsetY, -1.0f, 1.0f, 0.0f));
+        values.put("avatar_aspect_ratio", clamp(aspectRatio, 0.75f, 1.65f, 1.0f));
+        db.update(TABLE_PROFILES, values, "id = ?", new String[]{String.valueOf(profileId)});
+    }
+
+    public void clearProfileAvatar(long profileId) {
+        updateProfileAvatar(profileId, "", 1.0f, 0.0f, 0.0f, 1.0f);
     }
 
     public boolean deleteProfile(long profileId) {
@@ -343,6 +384,11 @@ public class MedicationStore extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PROFILES + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 "name TEXT NOT NULL, " +
+                "avatar_uri TEXT NOT NULL DEFAULT '', " +
+                "avatar_zoom REAL NOT NULL DEFAULT 1.0, " +
+                "avatar_offset_x REAL NOT NULL DEFAULT 0.0, " +
+                "avatar_offset_y REAL NOT NULL DEFAULT 0.0, " +
+                "avatar_aspect_ratio REAL NOT NULL DEFAULT 1.0, " +
                 "created_at INTEGER NOT NULL" +
                 ")");
     }
@@ -365,8 +411,19 @@ public class MedicationStore extends SQLiteOpenHelper {
 
         ContentValues values = new ContentValues();
         values.put("name", "Me");
+        values.put("avatar_uri", "");
+        values.put("avatar_zoom", 1.0f);
+        values.put("avatar_offset_x", 0.0f);
+        values.put("avatar_offset_y", 0.0f);
+        values.put("avatar_aspect_ratio", 1.0f);
         values.put("created_at", System.currentTimeMillis());
         return db.insert(TABLE_PROFILES, null, values);
+    }
+
+    private void addProfileColumnIfMissing(SQLiteDatabase db, String columnName, String definition) {
+        if (!columnExists(db, TABLE_PROFILES, columnName)) {
+            db.execSQL("ALTER TABLE " + TABLE_PROFILES + " ADD COLUMN " + columnName + " " + definition);
+        }
     }
 
     private boolean columnExists(SQLiteDatabase db, String tableName, String columnName) {
@@ -385,8 +442,37 @@ public class MedicationStore extends SQLiteOpenHelper {
         return new Profile(
                 cursor.getLong(cursor.getColumnIndexOrThrow("id")),
                 cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                stringValue(cursor, "avatar_uri", ""),
+                floatValue(cursor, "avatar_zoom", 1.0f),
+                floatValue(cursor, "avatar_offset_x", 0.0f),
+                floatValue(cursor, "avatar_offset_y", 0.0f),
+                floatValue(cursor, "avatar_aspect_ratio", 1.0f),
                 cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
         );
+    }
+
+    private String stringValue(Cursor cursor, String columnName, String fallback) {
+        int index = cursor.getColumnIndex(columnName);
+        if (index < 0) {
+            return fallback;
+        }
+        String value = cursor.getString(index);
+        return value == null ? fallback : value;
+    }
+
+    private float floatValue(Cursor cursor, String columnName, float fallback) {
+        int index = cursor.getColumnIndex(columnName);
+        if (index < 0) {
+            return fallback;
+        }
+        return cursor.getFloat(index);
+    }
+
+    private float clamp(float value, float min, float max, float fallback) {
+        if (Float.isNaN(value) || Float.isInfinite(value) || value <= 0 && min > 0) {
+            return fallback;
+        }
+        return Math.max(min, Math.min(max, value));
     }
 
     private Medication medicationFrom(Cursor cursor) {

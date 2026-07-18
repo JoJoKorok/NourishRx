@@ -4,24 +4,35 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.TimePickerDialog;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
@@ -41,9 +52,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.io.IOException;
+import java.io.InputStream;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
+    private static final int REQUEST_PROFILE_PHOTO = 43;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
 
     private static final int COLOR_SURFACE = Color.rgb(246, 242, 232);
@@ -70,6 +84,7 @@ public class MainActivity extends Activity {
     private LinearLayout content;
     private String currentTab = "today";
     private long currentProfileId;
+    private long pendingPhotoProfileId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,6 +118,28 @@ public class MainActivity extends Activity {
             }
             renderShell();
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PROFILE_PHOTO) {
+            return;
+        }
+
+        if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingPhotoProfileId > 0) {
+            Uri photoUri = data.getData();
+            try {
+                getContentResolver().takePersistableUriPermission(photoUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (IllegalArgumentException | SecurityException ignored) {
+                // Some providers grant a temporary read URI instead of a persistable one.
+            }
+            Profile profile = store.getProfile(pendingPhotoProfileId);
+            if (profile != null) {
+                showProfilePhotoEditor(profile, photoUri.toString(), 1.0f, 0.0f, 0.0f, 1.0f);
+            }
+        }
+        pendingPhotoProfileId = 0;
     }
 
     private void renderShell() {
@@ -151,11 +188,10 @@ public class MainActivity extends Activity {
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        String profileName = selectedProfileName();
-        TextView mark = text(profileInitials(profileName), 18, Color.WHITE, Typeface.BOLD);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(24)));
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(48), dp(48));
+        Profile profile = selectedProfile();
+        String profileName = profile.name;
+        View mark = profileAvatar(profile, 54, COLOR_GREEN, 18);
+        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(avatarWidthDp(profile, 54)), dp(54));
         markParams.rightMargin = dp(12);
         top.addView(mark, markParams);
 
@@ -458,10 +494,8 @@ public class MainActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
 
         boolean selected = profile.id == currentProfileId;
-        TextView avatar = text(profileInitials(profile.name), 14, Color.WHITE, Typeface.BOLD);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(rounded(selected ? COLOR_GREEN : COLOR_BLUE, Color.TRANSPARENT, dp(18)));
-        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(dp(36), dp(36));
+        View avatar = profileAvatar(profile, 38, selected ? COLOR_GREEN : COLOR_BLUE, 14);
+        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(dp(avatarWidthDp(profile, 38)), dp(38));
         avatarParams.rightMargin = dp(10);
         top.addView(avatar, avatarParams);
 
@@ -484,6 +518,17 @@ public class MainActivity extends Activity {
         });
         actions.addView(switchButton, weightedActionParams());
 
+        Button photo = button("Photo", COLOR_GOLD, COLOR_GOLD_SOFT);
+        photo.setOnClickListener(view -> {
+            if (dialogRef[0] != null) {
+                dialogRef[0].dismiss();
+            }
+            showProfilePhotoOptions(profile);
+        });
+        actions.addView(photo, weightedActionParams());
+        row.addView(actions);
+
+        LinearLayout editActions = actionRow();
         Button rename = button("Rename", COLOR_BLUE, COLOR_BLUE_SOFT);
         rename.setOnClickListener(view -> {
             if (dialogRef[0] != null) {
@@ -491,7 +536,7 @@ public class MainActivity extends Activity {
             }
             showRenameProfileDialog(profile);
         });
-        actions.addView(rename, weightedActionParams());
+        editActions.addView(rename, weightedActionParams());
 
         Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
         delete.setOnClickListener(view -> {
@@ -500,8 +545,8 @@ public class MainActivity extends Activity {
             }
             confirmDeleteProfile(profile);
         });
-        actions.addView(delete, weightedActionParams());
-        row.addView(actions);
+        editActions.addView(delete, weightedActionParams());
+        row.addView(editActions);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -510,6 +555,171 @@ public class MainActivity extends Activity {
         params.topMargin = dp(8);
         row.setLayoutParams(params);
         return row;
+    }
+
+    private void showProfilePhotoOptions(Profile profile) {
+        if (!profile.hasAvatar()) {
+            chooseProfilePhoto(profile);
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(profile.name + " photo")
+                .setItems(new CharSequence[]{"Edit framing", "Change photo", "Remove photo"}, (dialog, which) -> {
+                    if (which == 0) {
+                        showProfilePhotoEditor(
+                                profile,
+                                profile.avatarUri,
+                                profile.avatarZoom,
+                                profile.avatarOffsetX,
+                                profile.avatarOffsetY,
+                                profile.avatarAspectRatio
+                        );
+                    } else if (which == 1) {
+                        chooseProfilePhoto(profile);
+                    } else {
+                        store.clearProfileAvatar(profile.id);
+                        Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
+                        renderShell();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void chooseProfilePhoto(Profile profile) {
+        pendingPhotoProfileId = profile.id;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, REQUEST_PROFILE_PHOTO);
+        } catch (Exception exception) {
+            pendingPhotoProfileId = 0;
+            Toast.makeText(this, "No photo picker is available.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showProfilePhotoEditor(
+            Profile profile,
+            String avatarUri,
+            float zoom,
+            float offsetX,
+            float offsetY,
+            float aspectRatio
+    ) {
+        Bitmap bitmap = loadBitmap(avatarUri);
+        if (bitmap == null) {
+            Toast.makeText(this, "That photo could not be opened.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(18), dp(8), dp(18), 0);
+
+        ProfilePhotoEditorView editor = new ProfilePhotoEditorView(bitmap);
+        editor.setFrame(zoom, offsetX, offsetY, aspectRatio);
+        LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(280)
+        );
+        form.addView(editor, editorParams);
+
+        TextView zoomLabel = fieldLabel("Zoom");
+        form.addView(zoomLabel);
+        SeekBar zoomSlider = new SeekBar(this);
+        zoomSlider.setMax(200);
+        zoomSlider.setProgress(Math.round((editor.getZoom() - 1.0f) * 100.0f));
+        zoomSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                editor.setZoom(1.0f + progress / 100.0f);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+        editor.setOnFrameChangedListener(() -> {
+            int progress = Math.round((editor.getZoom() - 1.0f) * 100.0f);
+            if (zoomSlider.getProgress() != progress) {
+                zoomSlider.setProgress(progress);
+            }
+        });
+        form.addView(zoomSlider);
+
+        form.addView(fieldLabel("Frame"));
+        LinearLayout aspectActions = actionRow();
+        Button square = button("Square", COLOR_GREEN, COLOR_GREEN_SOFT);
+        square.setOnClickListener(view -> editor.setAspectRatio(1.0f));
+        aspectActions.addView(square, weightedActionParams());
+
+        Button portrait = button("Portrait", COLOR_BLUE, COLOR_BLUE_SOFT);
+        portrait.setOnClickListener(view -> editor.setAspectRatio(0.8f));
+        aspectActions.addView(portrait, weightedActionParams());
+
+        Button wide = button("Wide", COLOR_GOLD, COLOR_GOLD_SOFT);
+        wide.setOnClickListener(view -> editor.setAspectRatio(1.6f));
+        aspectActions.addView(wide, weightedActionParams());
+        form.addView(aspectActions);
+
+        form.addView(fieldLabel("Position"));
+        LinearLayout horizontalActions = actionRow();
+        Button left = button("Left", COLOR_BLUE, COLOR_BLUE_SOFT);
+        left.setOnClickListener(view -> editor.nudge(-0.12f, 0.0f));
+        horizontalActions.addView(left, weightedActionParams());
+
+        Button center = button("Center", COLOR_GREEN, COLOR_GREEN_SOFT);
+        center.setOnClickListener(view -> editor.center());
+        horizontalActions.addView(center, weightedActionParams());
+
+        Button right = button("Right", COLOR_BLUE, COLOR_BLUE_SOFT);
+        right.setOnClickListener(view -> editor.nudge(0.12f, 0.0f));
+        horizontalActions.addView(right, weightedActionParams());
+        form.addView(horizontalActions);
+
+        LinearLayout verticalActions = actionRow();
+        Button up = button("Up", COLOR_BLUE, COLOR_BLUE_SOFT);
+        up.setOnClickListener(view -> editor.nudge(0.0f, -0.12f));
+        verticalActions.addView(up, weightedActionParams());
+
+        Button down = button("Down", COLOR_BLUE, COLOR_BLUE_SOFT);
+        down.setOnClickListener(view -> editor.nudge(0.0f, 0.12f));
+        verticalActions.addView(down, weightedActionParams());
+        form.addView(verticalActions);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Frame " + profile.name)
+                .setView(form)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", null)
+                .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            save.setOnClickListener(view -> {
+                store.updateProfileAvatar(
+                        profile.id,
+                        avatarUri,
+                        editor.getZoom(),
+                        editor.getOffsetX(),
+                        editor.getOffsetY(),
+                        editor.getAspectRatio()
+                );
+                Toast.makeText(this, "Profile photo updated.", Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+                renderShell();
+            });
+        });
+
+        dialog.show();
     }
 
     private void showRenameProfileDialog(Profile profile) {
@@ -868,12 +1078,20 @@ public class MainActivity extends Activity {
                 .apply();
     }
 
-    private String selectedProfileName() {
+    private Profile selectedProfile() {
         Profile profile = store.getProfile(currentProfileId);
         if (profile == null) {
             currentProfileId = resolveProfileId(currentProfileId);
             profile = store.getProfile(currentProfileId);
         }
+        if (profile == null) {
+            return new Profile(currentProfileId, "Me", "", 1.0f, 0.0f, 0.0f, 1.0f, System.currentTimeMillis());
+        }
+        return profile;
+    }
+
+    private String selectedProfileName() {
+        Profile profile = selectedProfile();
         return profile == null ? "Me" : profile.name;
     }
 
@@ -1155,6 +1373,127 @@ public class MainActivity extends Activity {
         return initials.length() == 0 ? "ME" : initials.toString();
     }
 
+    private View profileAvatar(Profile profile, int sizeDp, int fallbackColor, int textSp) {
+        int size = dp(sizeDp);
+        if (profile != null && profile.hasAvatar()) {
+            int width = dp(avatarWidthDp(profile, sizeDp));
+            Bitmap source = loadBitmap(profile.avatarUri);
+            Bitmap avatar = source == null
+                    ? null
+                    : createCroppedAvatarBitmap(source, Math.max(1, width * 2), Math.max(1, size * 2), profile);
+            if (avatar != null) {
+                ImageView image = new ImageView(this);
+                image.setScaleType(ImageView.ScaleType.FIT_XY);
+                image.setImageBitmap(avatar);
+                image.setContentDescription(profile.name + " profile photo");
+                return image;
+            }
+        }
+
+        TextView avatar = text(profileInitials(profile == null ? "" : profile.name), textSp, Color.WHITE, Typeface.BOLD);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(rounded(fallbackColor, Color.TRANSPARENT, size / 2));
+        avatar.setContentDescription(profile == null ? "Profile initials" : profile.name + " initials");
+        return avatar;
+    }
+
+    private int avatarWidthDp(Profile profile, int heightDp) {
+        if (profile == null || !profile.hasAvatar()) {
+            return heightDp;
+        }
+        return Math.round(heightDp * clamp(profile.avatarAspectRatio, 0.75f, 1.65f, 1.0f));
+    }
+
+    private Bitmap loadBitmap(String uriString) {
+        if (uriString == null || uriString.trim().isEmpty()) {
+            return null;
+        }
+
+        Uri uri;
+        try {
+            uri = Uri.parse(uriString);
+        } catch (Exception exception) {
+            return null;
+        }
+
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (InputStream input = getContentResolver().openInputStream(uri)) {
+            BitmapFactory.decodeStream(input, null, bounds);
+        } catch (IOException | RuntimeException exception) {
+            return null;
+        }
+
+        int sampleSize = 1;
+        int largestSide = Math.max(bounds.outWidth, bounds.outHeight);
+        while (largestSide / sampleSize > 1600) {
+            sampleSize *= 2;
+        }
+
+        BitmapFactory.Options decode = new BitmapFactory.Options();
+        decode.inSampleSize = sampleSize;
+        decode.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        try (InputStream input = getContentResolver().openInputStream(uri)) {
+            return BitmapFactory.decodeStream(input, null, decode);
+        } catch (IOException | RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private Bitmap createCroppedAvatarBitmap(Bitmap source, int width, int height, Profile profile) {
+        Bitmap output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(output);
+        RectF frame = new RectF(0, 0, width, height);
+        Path clip = new Path();
+        float radius = Math.min(width, height) / 2.0f;
+        clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
+        canvas.save();
+        canvas.clipPath(clip);
+        drawCroppedBitmap(
+                canvas,
+                source,
+                frame,
+                profile.avatarZoom,
+                profile.avatarOffsetX,
+                profile.avatarOffsetY
+        );
+        canvas.restore();
+        return output;
+    }
+
+    private void drawCroppedBitmap(
+            Canvas canvas,
+            Bitmap source,
+            RectF frame,
+            float zoom,
+            float offsetX,
+            float offsetY
+    ) {
+        if (source == null || source.getWidth() <= 0 || source.getHeight() <= 0) {
+            return;
+        }
+
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+        float safeZoom = clamp(zoom, 1.0f, 3.0f, 1.0f);
+        float scale = Math.max(frame.width() / source.getWidth(), frame.height() / source.getHeight()) * safeZoom;
+        float destinationWidth = source.getWidth() * scale;
+        float destinationHeight = source.getHeight() * scale;
+        float panX = Math.max(0.0f, (destinationWidth - frame.width()) / 2.0f);
+        float panY = Math.max(0.0f, (destinationHeight - frame.height()) / 2.0f);
+        float left = frame.centerX() - destinationWidth / 2.0f + clamp(offsetX, -1.0f, 1.0f, 0.0f) * panX;
+        float top = frame.centerY() - destinationHeight / 2.0f + clamp(offsetY, -1.0f, 1.0f, 0.0f) * panY;
+        RectF destination = new RectF(left, top, left + destinationWidth, top + destinationHeight);
+        canvas.drawColor(COLOR_CARD);
+        canvas.drawBitmap(source, null, destination, paint);
+    }
+
+    private float clamp(float value, float min, float max, float fallback) {
+        if (Float.isNaN(value) || Float.isInfinite(value) || value <= 0 && min > 0) {
+            return fallback;
+        }
+        return Math.max(min, Math.min(max, value));
+    }
+
     private int parseInt(EditText field, int fallback) {
         try {
             return Math.max(0, Integer.parseInt(field.getText().toString().trim()));
@@ -1165,6 +1504,176 @@ public class MainActivity extends Activity {
 
     private int dp(float value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private final class ProfilePhotoEditorView extends View {
+        private final Bitmap bitmap;
+        private float zoom = 1.0f;
+        private float offsetX = 0.0f;
+        private float offsetY = 0.0f;
+        private float aspectRatio = 1.0f;
+        private float lastX;
+        private float lastY;
+        private float pinchStartDistance;
+        private float pinchStartZoom;
+        private Runnable onFrameChanged;
+
+        ProfilePhotoEditorView(Bitmap bitmap) {
+            super(MainActivity.this);
+            this.bitmap = bitmap;
+            setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(22)));
+        }
+
+        void setOnFrameChangedListener(Runnable listener) {
+            onFrameChanged = listener;
+        }
+
+        void setFrame(float zoom, float offsetX, float offsetY, float aspectRatio) {
+            this.zoom = clamp(zoom, 1.0f, 3.0f, 1.0f);
+            this.offsetX = clamp(offsetX, -1.0f, 1.0f, 0.0f);
+            this.offsetY = clamp(offsetY, -1.0f, 1.0f, 0.0f);
+            this.aspectRatio = clamp(aspectRatio, 0.75f, 1.65f, 1.0f);
+            invalidate();
+            notifyFrameChanged();
+        }
+
+        void setZoom(float value) {
+            zoom = clamp(value, 1.0f, 3.0f, 1.0f);
+            invalidate();
+            notifyFrameChanged();
+        }
+
+        void setAspectRatio(float value) {
+            aspectRatio = clamp(value, 0.75f, 1.65f, 1.0f);
+            invalidate();
+            notifyFrameChanged();
+        }
+
+        void nudge(float deltaX, float deltaY) {
+            offsetX = clamp(offsetX + deltaX, -1.0f, 1.0f, 0.0f);
+            offsetY = clamp(offsetY + deltaY, -1.0f, 1.0f, 0.0f);
+            invalidate();
+            notifyFrameChanged();
+        }
+
+        void center() {
+            offsetX = 0.0f;
+            offsetY = 0.0f;
+            invalidate();
+            notifyFrameChanged();
+        }
+
+        float getZoom() {
+            return zoom;
+        }
+
+        float getOffsetX() {
+            return offsetX;
+        }
+
+        float getOffsetY() {
+            return offsetY;
+        }
+
+        float getAspectRatio() {
+            return aspectRatio;
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            RectF frame = editorFrame();
+            float radius = Math.min(frame.width(), frame.height()) / 2.0f;
+
+            Path clip = new Path();
+            clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(clip);
+            drawCroppedBitmap(canvas, bitmap, frame, zoom, offsetX, offsetY);
+            canvas.restore();
+
+            Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
+            border.setStyle(Paint.Style.STROKE);
+            border.setStrokeWidth(dp(2));
+            border.setColor(COLOR_GREEN);
+            canvas.drawRoundRect(frame, radius, radius, border);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                lastX = event.getX();
+                lastY = event.getY();
+                getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+            }
+            if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
+                pinchStartDistance = pointerDistance(event);
+                pinchStartZoom = zoom;
+                return true;
+            }
+            if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                if (event.getPointerCount() >= 2) {
+                    float distance = pointerDistance(event);
+                    if (pinchStartDistance > 0.0f) {
+                        setZoom(pinchStartZoom * distance / pinchStartDistance);
+                    }
+                } else {
+                    float x = event.getX();
+                    float y = event.getY();
+                    panByPixels(x - lastX, y - lastY);
+                    lastX = x;
+                    lastY = y;
+                }
+                return true;
+            }
+            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
+                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
+            }
+            return true;
+        }
+
+        private RectF editorFrame() {
+            float padding = dp(14);
+            float availableWidth = Math.max(1.0f, getWidth() - padding * 2.0f);
+            float availableHeight = Math.max(1.0f, getHeight() - padding * 2.0f);
+            float frameWidth = availableWidth;
+            float frameHeight = frameWidth / aspectRatio;
+            if (frameHeight > availableHeight) {
+                frameHeight = availableHeight;
+                frameWidth = frameHeight * aspectRatio;
+            }
+            float left = (getWidth() - frameWidth) / 2.0f;
+            float top = (getHeight() - frameHeight) / 2.0f;
+            return new RectF(left, top, left + frameWidth, top + frameHeight);
+        }
+
+        private void panByPixels(float deltaX, float deltaY) {
+            RectF frame = editorFrame();
+            float scale = Math.max(frame.width() / bitmap.getWidth(), frame.height() / bitmap.getHeight()) * zoom;
+            float destinationWidth = bitmap.getWidth() * scale;
+            float destinationHeight = bitmap.getHeight() * scale;
+            float panX = Math.max(1.0f, (destinationWidth - frame.width()) / 2.0f);
+            float panY = Math.max(1.0f, (destinationHeight - frame.height()) / 2.0f);
+            offsetX = clamp(offsetX + deltaX / panX, -1.0f, 1.0f, 0.0f);
+            offsetY = clamp(offsetY + deltaY / panY, -1.0f, 1.0f, 0.0f);
+            invalidate();
+            notifyFrameChanged();
+        }
+
+        private float pointerDistance(MotionEvent event) {
+            float deltaX = event.getX(0) - event.getX(1);
+            float deltaY = event.getY(0) - event.getY(1);
+            return (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        }
+
+        private void notifyFrameChanged() {
+            if (onFrameChanged != null) {
+                onFrameChanged.run();
+            }
+        }
     }
 
     private static final class DoseRow {
