@@ -6,8 +6,7 @@ A native Android MVP for medication scheduling and organization.
 
 - Today view with each scheduled dose for active medications.
 - Named medication profiles for different people.
-- Public medication lookup through the National Library of Medicine RxNorm API, with manual entry fallback.
-- Add and edit medications with dosage, instructions, first dose time, daily frequency, stock count, and refill threshold.
+- Manual medication entry with dosage, instructions, first dose time, daily frequency, stock count, and refill threshold.
 - Mark doses as taken or skipped.
 - Inventory view with low-stock warnings and quick stock adjustments.
 - Local SQLite storage on the device.
@@ -21,7 +20,6 @@ A native Android MVP for medication scheduling and organization.
 - UI: Android framework views, no AndroidX runtime dependency
 - Storage: `SQLiteOpenHelper`
 - Reminders: `AlarmManager`, `BroadcastReceiver`, `NotificationChannel`
-- Medication lookup: NLM RxNav/RxNorm REST API
 - Minimum SDK: 26
 - Target/compile SDK: 37
 
@@ -46,8 +44,6 @@ Android 13 and newer require notification permission before reminders can appear
 ## Safety and Privacy Notes
 
 This is a personal/portfolio medication organizer, not medical advice or certified medical software. Always confirm medication names, dosages, and schedules with the prescription label or a clinician.
-
-The medication search feature queries the public NLM RxNorm API using the text typed into the medication search box. Manual entry is always available.
 
 ## Install on a Phone
 

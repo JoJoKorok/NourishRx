@@ -9,10 +9,8 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Handler;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -31,7 +29,6 @@ import android.widget.Toast;
 import com.example.medicationmanager.data.Medication;
 import com.example.medicationmanager.data.MedicationStore;
 import com.example.medicationmanager.data.Profile;
-import com.example.medicationmanager.data.RxNormClient;
 import com.example.medicationmanager.reminders.ReminderScheduler;
 
 import java.time.Instant;
@@ -68,8 +65,6 @@ public class MainActivity extends Activity {
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault());
 
     private MedicationStore store;
-    private RxNormClient rxNormClient;
-    private Handler mainHandler;
     private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
@@ -79,8 +74,6 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         store = new MedicationStore(this);
-        rxNormClient = new RxNormClient();
-        mainHandler = new Handler(Looper.getMainLooper());
         currentProfileId = loadSelectedProfileId();
         ReminderScheduler.ensureNotificationChannel(this);
         ReminderScheduler.scheduleAll(this);
@@ -609,114 +602,6 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
-    private void showMedicationSearchDialog(EditText targetNameField) {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        EditText queryField = field(
-                "Search drug name",
-                targetNameField.getText().toString(),
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS
-        );
-        TextView status = text("Search RxNorm, then choose a result or close this and type manually.", 13, COLOR_MUTED, Typeface.BOLD);
-        status.setPadding(0, dp(8), 0, dp(8));
-
-        Button search = button("Search RxNorm", COLOR_BLUE, COLOR_BLUE_SOFT);
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        searchParams.topMargin = dp(8);
-
-        LinearLayout results = new LinearLayout(this);
-        results.setOrientation(LinearLayout.VERTICAL);
-        results.setPadding(0, dp(8), 0, 0);
-
-        form.addView(queryField);
-        form.addView(search, searchParams);
-        form.addView(status);
-        form.addView(results);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Choose medication")
-                .setView(scrollView)
-                .setNegativeButton("Manual entry", null)
-                .create();
-
-        search.setOnClickListener(view -> {
-            String query = queryField.getText().toString().trim();
-            results.removeAllViews();
-            status.setText("Searching public medication database...");
-            search.setEnabled(false);
-
-            rxNormClient.searchDrugs(query, new RxNormClient.SearchCallback() {
-                @Override
-                public void onSuccess(List<RxNormClient.MedicationOption> options) {
-                    mainHandler.post(() -> {
-                        search.setEnabled(true);
-                        results.removeAllViews();
-                        if (options.isEmpty()) {
-                            status.setText("No public matches found. You can still enter the medication manually.");
-                            return;
-                        }
-
-                        status.setText("Choose the closest match. You can edit it afterward.");
-                        for (RxNormClient.MedicationOption option : options) {
-                            results.addView(medicationOptionRow(option, targetNameField, dialog));
-                        }
-                    });
-                }
-
-                @Override
-                public void onError(String message) {
-                    mainHandler.post(() -> {
-                        search.setEnabled(true);
-                        results.removeAllViews();
-                        status.setText(message);
-                    });
-                }
-            });
-        });
-
-        dialog.setOnShowListener(dialogInterface -> search.performClick());
-        dialog.show();
-    }
-
-    private View medicationOptionRow(
-            RxNormClient.MedicationOption option,
-            EditText targetNameField,
-            AlertDialog dialog
-    ) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(12));
-        row.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-
-        row.addView(text(option.name, 15, COLOR_INK, Typeface.BOLD));
-        String detail = option.type.isEmpty()
-                ? "RxCUI " + option.rxcui
-                : option.type + " - RxCUI " + option.rxcui;
-        row.addView(text(detail, 12, COLOR_MUTED, Typeface.BOLD));
-
-        row.setOnClickListener(view -> {
-            targetNameField.setText(option.name);
-            targetNameField.setSelection(targetNameField.getText().length());
-            dialog.dismiss();
-        });
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(8);
-        row.setLayoutParams(params);
-        return row;
-    }
-
     private void showMedicationDialog(Medication existing) {
         Medication medication = existing == null ? Medication.empty() : new Medication(
                 existing.id,
@@ -774,14 +659,6 @@ public class MainActivity extends Activity {
         activeBox.setChecked(medication.active);
 
         form.addView(nameField);
-        Button searchMedication = button("Search public medication database", COLOR_BLUE, COLOR_BLUE_SOFT);
-        searchMedication.setOnClickListener(view -> showMedicationSearchDialog(nameField));
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        searchParams.topMargin = dp(8);
-        form.addView(searchMedication, searchParams);
         form.addView(dosageField);
         form.addView(instructionsField);
         form.addView(timeField);
