@@ -12,6 +12,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -160,8 +161,11 @@ public class MainActivity extends Activity {
 
         LinearLayout titleGroup = new LinearLayout(this);
         titleGroup.setOrientation(LinearLayout.VERTICAL);
-        titleGroup.addView(displayText("Today for " + profileName, 27, COLOR_INK));
-        TextView date = text("Care plan - " + LocalDate.now().format(dateFormatter), 13, COLOR_MUTED, Typeface.BOLD);
+        TextView headline = displayText(profileName, 28, COLOR_INK);
+        headline.setSingleLine(true);
+        headline.setEllipsize(TextUtils.TruncateAt.END);
+        titleGroup.addView(headline);
+        TextView date = text("Today - " + LocalDate.now().format(dateFormatter), 13, COLOR_MUTED, Typeface.BOLD);
         titleGroup.addView(date);
         top.addView(titleGroup, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
@@ -170,7 +174,7 @@ public class MainActivity extends Activity {
         top.addView(add, compactButtonParams());
         panel.addView(top);
 
-        Button profileButton = button("Switch or manage profiles", COLOR_BLUE, Color.WHITE);
+        Button profileButton = button("Manage profiles", COLOR_BLUE, Color.WHITE);
         profileButton.setOnClickListener(view -> showProfilesDialog());
         LinearLayout.LayoutParams profileParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
