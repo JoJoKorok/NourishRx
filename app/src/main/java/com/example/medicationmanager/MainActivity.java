@@ -432,6 +432,7 @@ public class MainActivity extends Activity {
 
         content.addView(sectionTitle("Nutrition", selectedProfileName() + " has " + meals.size() + " meals logged today"));
         content.addView(nutritionSummaryCard(calories, protein, carbs, fat));
+        content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
         content.addView(waterCard(waterOunces, start, end));
         content.addView(weightCard(weights));
 
@@ -453,6 +454,7 @@ public class MainActivity extends Activity {
         List<NutritionMeal> meals = store.getNutritionMeals(currentProfileId, start, end);
 
         content.addView(sectionTitle("Meals", meals.isEmpty() ? "No meals logged today" : plural(meals.size(), "meal", "meals") + " today"));
+        content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
         Button addMeal = button("+ Add meal", COLOR_GREEN, COLOR_GREEN_SOFT);
         addMeal.setOnClickListener(view -> showMealDialog(null));
         LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
@@ -506,6 +508,40 @@ public class MainActivity extends Activity {
         );
         addParams.topMargin = dp(12);
         card.addView(addMeal, addParams);
+        return card;
+    }
+
+    private View defaultMealsCard(List<String> mealDefaults) {
+        LinearLayout card = card();
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.addView(text("Default meals", 19, COLOR_INK, Typeface.BOLD));
+        details.addView(text(plural(mealDefaults.size(), "saved meal name", "saved meal names"), 13, COLOR_MUTED, Typeface.BOLD));
+        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
+        edit.setOnClickListener(view -> showMealDefaultsDialog());
+        top.addView(edit, compactButtonParams());
+        card.addView(top);
+
+        for (String mealName : mealDefaults) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(10), 0, 0);
+
+            TextView name = text(mealName, 15, COLOR_INK, Typeface.BOLD);
+            row.addView(name, new LinearLayout.LayoutParams(0, dp(42), 1));
+
+            Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
+            log.setOnClickListener(view -> showPresetMealDialog(mealName));
+            row.addView(log, new LinearLayout.LayoutParams(dp(88), dp(42)));
+            card.addView(row);
+        }
         return card;
     }
 
@@ -1258,8 +1294,18 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private void showPresetMealDialog(String presetName) {
+        showMealDialog(null, presetName);
+    }
+
     private void showMealDialog(NutritionMeal existing) {
-        NutritionMeal meal = existing == null ? NutritionMeal.empty(currentProfileId) : existing;
+        showMealDialog(existing, "");
+    }
+
+    private void showMealDialog(NutritionMeal existing, String presetName) {
+        NutritionMeal meal = existing == null
+                ? new NutritionMeal(0, currentProfileId, presetName, 0, 0.0f, 0.0f, 0.0f, System.currentTimeMillis())
+                : existing;
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(18), dp(8), dp(18), 0);
@@ -1269,11 +1315,29 @@ public class MainActivity extends Activity {
         EditText proteinField = field("Protein grams", formatFloatInput(meal.proteinGrams), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         EditText carbsField = field("Carbs grams", formatFloatInput(meal.carbsGrams), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         EditText fatField = field("Fat grams", formatFloatInput(meal.fatGrams), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+
+        final boolean[] customMealTime = {existing != null};
+        final int[] mealMinutes = {minuteOfDay(meal.loggedAt)};
+        LinearLayout timeActions = actionRow();
+        Button timeButton = button(customMealTime[0] ? "Ate at " + Medication.formatMinutes(mealMinutes[0]) : "Time: now", COLOR_BLUE, COLOR_BLUE_SOFT);
+        timeButton.setOnClickListener(view -> showMealTimePicker(timeButton, mealMinutes, customMealTime));
+        timeActions.addView(timeButton, weightedActionParams());
+
+        Button nowButton = button("Use now", COLOR_GREEN, COLOR_GREEN_SOFT);
+        nowButton.setOnClickListener(view -> {
+            customMealTime[0] = false;
+            mealMinutes[0] = minuteOfDay(System.currentTimeMillis());
+            timeButton.setText("Time: now");
+        });
+        timeActions.addView(nowButton, weightedActionParams());
+
         form.addView(nameField);
         form.addView(caloriesField);
         form.addView(proteinField);
         form.addView(carbsField);
         form.addView(fatField);
+        form.addView(fieldLabel("Time eaten"));
+        form.addView(timeActions);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(existing == null ? "Add meal" : "Edit meal")
@@ -1299,7 +1363,7 @@ public class MainActivity extends Activity {
                         parseFloat(proteinField, 0.0f),
                         parseFloat(carbsField, 0.0f),
                         parseFloat(fatField, 0.0f),
-                        meal.loggedAt
+                        customMealTime[0] ? millisForMealTime(meal.loggedAt, mealMinutes[0]) : System.currentTimeMillis()
                 ));
                 dialog.dismiss();
                 renderShell();
@@ -1307,6 +1371,106 @@ public class MainActivity extends Activity {
         });
 
         dialog.show();
+    }
+
+    private void showMealDefaultsDialog() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(18), dp(8), dp(18), 0);
+
+        LinearLayout defaultsList = new LinearLayout(this);
+        defaultsList.setOrientation(LinearLayout.VERTICAL);
+        renderMealDefaultRows(defaultsList, new ArrayList<>(store.getMealDefaults(currentProfileId)));
+        form.addView(defaultsList);
+
+        Button addDefault = button("+ Default meal", COLOR_GREEN, COLOR_GREEN_SOFT);
+        addDefault.setOnClickListener(view -> {
+            ArrayList<String> names = mealDefaultNamesFrom(defaultsList);
+            names.add("Meal " + (names.size() + 1));
+            renderMealDefaultRows(defaultsList, names);
+        });
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        addParams.topMargin = dp(10);
+        form.addView(addDefault, addParams);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Default meals")
+                .setView(form)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", null)
+                .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            save.setOnClickListener(view -> {
+                ArrayList<String> names = mealDefaultNamesFrom(defaultsList);
+                if (names.isEmpty()) {
+                    Toast.makeText(this, "Keep at least one default meal.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                store.saveMealDefaults(currentProfileId, names);
+                dialog.dismiss();
+                renderShell();
+            });
+        });
+
+        dialog.show();
+    }
+
+    private void renderMealDefaultRows(LinearLayout container, ArrayList<String> mealNames) {
+        container.removeAllViews();
+        if (mealNames.isEmpty()) {
+            mealNames.add("Meal 1");
+        }
+
+        for (int i = 0; i < mealNames.size(); i++) {
+            int index = i;
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(8), 0, 0);
+
+            EditText nameField = field("Meal name", mealNames.get(i), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+            row.addView(nameField, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
+            remove.setEnabled(mealNames.size() > 1);
+            remove.setAlpha(mealNames.size() > 1 ? 1.0f : 0.45f);
+            remove.setOnClickListener(view -> {
+                ArrayList<String> names = mealDefaultNamesFrom(container);
+                if (names.size() <= 1) {
+                    Toast.makeText(this, "Keep at least one default meal.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                names.remove(index);
+                renderMealDefaultRows(container, names);
+            });
+            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(dp(96), dp(48));
+            removeParams.leftMargin = dp(8);
+            row.addView(remove, removeParams);
+
+            container.addView(row);
+        }
+    }
+
+    private ArrayList<String> mealDefaultNamesFrom(LinearLayout container) {
+        ArrayList<String> names = new ArrayList<>();
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View child = container.getChildAt(i);
+            if (child instanceof LinearLayout) {
+                LinearLayout row = (LinearLayout) child;
+                if (row.getChildCount() > 0 && row.getChildAt(0) instanceof EditText) {
+                    String name = ((EditText) row.getChildAt(0)).getText().toString().trim();
+                    if (!name.isEmpty() && !names.contains(name)) {
+                        names.add(name);
+                    }
+                }
+            }
+        }
+        return names;
     }
 
     private void confirmDeleteMeal(NutritionMeal meal) {
@@ -1468,6 +1632,23 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private void showMealTimePicker(Button timeButton, int[] mealMinutes, boolean[] customMealTime) {
+        int hour = mealMinutes[0] / 60;
+        int minute = mealMinutes[0] % 60;
+        TimePickerDialog dialog = new TimePickerDialog(
+                this,
+                (view, selectedHour, selectedMinute) -> {
+                    mealMinutes[0] = Medication.normalizeMinutes((selectedHour * 60) + selectedMinute);
+                    customMealTime[0] = true;
+                    timeButton.setText("Ate at " + Medication.formatMinutes(mealMinutes[0]));
+                },
+                hour,
+                minute,
+                false
+        );
+        dialog.show();
+    }
+
     private int nextSuggestedDoseTime(List<Integer> doseMinutes) {
         if (doseMinutes.isEmpty()) {
             return 8 * 60;
@@ -1496,6 +1677,19 @@ public class MainActivity extends Activity {
         while (doseMinutes.size() > Medication.MAX_DOSES_PER_DAY) {
             doseMinutes.remove(doseMinutes.size() - 1);
         }
+    }
+
+    private int minuteOfDay(long epochMillis) {
+        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).getHour() * 60 +
+                Instant.ofEpochMilli(epochMillis).atZone(zoneId).getMinute();
+    }
+
+    private long millisForMealTime(long baseMillis, int minutes) {
+        LocalDate date = Instant.ofEpochMilli(baseMillis).atZone(zoneId).toLocalDate();
+        return date.atStartOfDay(zoneId)
+                .plusMinutes(Medication.normalizeMinutes(minutes))
+                .toInstant()
+                .toEpochMilli();
     }
 
     private void confirmDelete(Medication medication) {

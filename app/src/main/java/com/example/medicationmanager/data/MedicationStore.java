@@ -16,7 +16,7 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 6;
+    private static final int DATABASE_VERSION = 7;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
@@ -24,6 +24,7 @@ public class MedicationStore extends SQLiteOpenHelper {
     private static final String TABLE_NUTRITION_MEALS = "nutrition_meals";
     private static final String TABLE_WATER_ENTRIES = "water_entries";
     private static final String TABLE_WEIGHT_ENTRIES = "weight_entries";
+    private static final String TABLE_MEAL_DEFAULTS = "meal_defaults";
 
     public MedicationStore(Context context) {
         super(context.getApplicationContext(), DATABASE_NAME, null, DATABASE_VERSION);
@@ -91,6 +92,9 @@ public class MedicationStore extends SQLiteOpenHelper {
             addMedicationColumnIfMissing(db, "dose_minutes", "TEXT NOT NULL DEFAULT ''");
         }
         if (oldVersion < 6) {
+            createNutritionTables(db);
+        }
+        if (oldVersion < 7) {
             createNutritionTables(db);
         }
     }
@@ -217,6 +221,7 @@ public class MedicationStore extends SQLiteOpenHelper {
             db.delete(TABLE_NUTRITION_MEALS, "profile_id = ?", args);
             db.delete(TABLE_WATER_ENTRIES, "profile_id = ?", args);
             db.delete(TABLE_WEIGHT_ENTRIES, "profile_id = ?", args);
+            db.delete(TABLE_MEAL_DEFAULTS, "profile_id = ?", args);
             int deleted = db.delete(TABLE_PROFILES, "id = ?", args);
             db.setTransactionSuccessful();
             return deleted > 0;
@@ -352,6 +357,67 @@ public class MedicationStore extends SQLiteOpenHelper {
     public void deleteNutritionMeal(long mealId) {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_NUTRITION_MEALS, "id = ?", new String[]{String.valueOf(mealId)});
+    }
+
+    public List<String> getMealDefaults(long profileId) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<String> names = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_MEAL_DEFAULTS,
+                new String[]{"name"},
+                "profile_id = ?",
+                new String[]{String.valueOf(profileId)},
+                null,
+                null,
+                "sort_order ASC, id ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
+                if (name != null && !name.trim().isEmpty()) {
+                    names.add(name.trim());
+                }
+            }
+        }
+
+        if (names.isEmpty()) {
+            names.add("Breakfast");
+            names.add("Lunch");
+            names.add("Dinner");
+            saveMealDefaults(profileId, names);
+        }
+        return names;
+    }
+
+    public void saveMealDefaults(long profileId, List<String> names) {
+        SQLiteDatabase db = getWritableDatabase();
+        long safeProfileId = profileId > 0 ? profileId : ensureDefaultProfile();
+        List<String> cleanNames = new ArrayList<>();
+        if (names != null) {
+            for (String name : names) {
+                String clean = name == null ? "" : name.trim();
+                if (!clean.isEmpty() && !cleanNames.contains(clean)) {
+                    cleanNames.add(clean);
+                }
+            }
+        }
+        if (cleanNames.isEmpty()) {
+            cleanNames.add("Meal 1");
+        }
+
+        db.beginTransaction();
+        try {
+            db.delete(TABLE_MEAL_DEFAULTS, "profile_id = ?", new String[]{String.valueOf(safeProfileId)});
+            for (int i = 0; i < cleanNames.size(); i++) {
+                ContentValues values = new ContentValues();
+                values.put("profile_id", safeProfileId);
+                values.put("name", cleanNames.get(i));
+                values.put("sort_order", i);
+                db.insert(TABLE_MEAL_DEFAULTS, null, values);
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public void addWater(long profileId, int ounces) {
@@ -574,6 +640,16 @@ public class MedicationStore extends SQLiteOpenHelper {
                 ")");
         db.execSQL("CREATE INDEX IF NOT EXISTS weight_entries_profile_day ON " +
                 TABLE_WEIGHT_ENTRIES + "(profile_id, logged_at)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_MEAL_DEFAULTS + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "name TEXT NOT NULL, " +
+                "sort_order INTEGER NOT NULL DEFAULT 0, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS meal_defaults_profile_order ON " +
+                TABLE_MEAL_DEFAULTS + "(profile_id, sort_order)");
     }
 
     private long ensureDefaultProfile(SQLiteDatabase db) {
