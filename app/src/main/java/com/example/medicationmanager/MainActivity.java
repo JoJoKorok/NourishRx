@@ -59,6 +59,9 @@ public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
     private static final int REQUEST_PROFILE_PHOTO = 43;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
+    private static final String PREF_APP_MODE = "app_mode";
+    private static final String MODE_MEDICATION = "medication";
+    private static final String MODE_NUTRITION = "nutrition";
 
     private static final int COLOR_SURFACE = Color.rgb(246, 242, 232);
     private static final int COLOR_CARD = Color.rgb(255, 252, 246);
@@ -84,6 +87,7 @@ public class MainActivity extends Activity {
     private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
+    private String currentMode = MODE_MEDICATION;
     private long currentProfileId;
     private long pendingPhotoProfileId;
 
@@ -92,6 +96,8 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         store = new MedicationStore(this);
         currentProfileId = loadSelectedProfileId();
+        currentMode = loadAppMode();
+        currentTab = defaultTabForMode(currentMode);
         ReminderScheduler.ensureNotificationChannel(this);
         ReminderScheduler.scheduleAll(this);
         renderShell();
@@ -206,8 +212,15 @@ public class MainActivity extends Activity {
         titleGroup.addView(date);
         top.addView(titleGroup, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-        Button add = button("+ Med", Color.WHITE, COLOR_GREEN);
-        add.setOnClickListener(view -> showMedicationDialog(null));
+        boolean nutritionMode = MODE_NUTRITION.equals(currentMode);
+        Button add = button(nutritionMode ? "+ Meal" : "+ Med", Color.WHITE, COLOR_GREEN);
+        add.setOnClickListener(view -> {
+            if (nutritionMode) {
+                showMealDialog(null);
+            } else {
+                showMedicationDialog(null);
+            }
+        });
         top.addView(add, compactButtonParams());
         panel.addView(top);
 
@@ -220,15 +233,34 @@ public class MainActivity extends Activity {
         profileParams.topMargin = dp(12);
         panel.addView(profileButton, profileParams);
 
+        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        modeParams.topMargin = dp(10);
+        panel.addView(modeSwitchRow(), modeParams);
+
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
         stats.setPadding(0, dp(14), 0, 0);
-        List<Medication> medications = store.getAllMedications(currentProfileId);
-        int todayCount = doseRowsFor(LocalDate.now(zoneId)).size();
-        long lowCount = medications.stream().filter(Medication::isLowStock).count();
-        stats.addView(summaryPill(plural(todayCount, "dose", "doses"), COLOR_GREEN, COLOR_GREEN_SOFT));
-        stats.addView(summaryPill(plural(medications.size(), "med", "meds"), COLOR_BLUE, COLOR_BLUE_SOFT));
-        stats.addView(summaryPill(plural(lowCount, "refill", "refills"), COLOR_GOLD, COLOR_GOLD_SOFT));
+        if (nutritionMode) {
+            LocalDate today = LocalDate.now(zoneId);
+            long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
+            long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
+            int mealCount = store.getNutritionMeals(currentProfileId, start, end).size();
+            int waterOunces = store.getWaterOunces(currentProfileId, start, end);
+            List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 1);
+            stats.addView(summaryPill(plural(mealCount, "meal", "meals"), COLOR_GREEN, COLOR_GREEN_SOFT));
+            stats.addView(summaryPill(waterOunces + " oz water", COLOR_BLUE, COLOR_BLUE_SOFT));
+            stats.addView(summaryPill(weights.isEmpty() ? "no weight" : formatPounds(weights.get(0).pounds) + " lb", COLOR_GOLD, COLOR_GOLD_SOFT));
+        } else {
+            List<Medication> medications = store.getAllMedications(currentProfileId);
+            int todayCount = doseRowsFor(LocalDate.now(zoneId)).size();
+            long lowCount = medications.stream().filter(Medication::isLowStock).count();
+            stats.addView(summaryPill(plural(todayCount, "dose", "doses"), COLOR_GREEN, COLOR_GREEN_SOFT));
+            stats.addView(summaryPill(plural(medications.size(), "med", "meds"), COLOR_BLUE, COLOR_BLUE_SOFT));
+            stats.addView(summaryPill(plural(lowCount, "refill", "refills"), COLOR_GOLD, COLOR_GOLD_SOFT));
+        }
         panel.addView(stats);
 
         Button alerts = button(alertsLabel(), alertColor(), Color.WHITE);
@@ -249,15 +281,41 @@ public class MainActivity extends Activity {
         return panel;
     }
 
+    private LinearLayout modeSwitchRow() {
+        LinearLayout modes = new LinearLayout(this);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        modes.setPadding(dp(4), dp(4), dp(4), dp(4));
+        modes.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
+        modes.addView(modeButton("Medication", MODE_MEDICATION));
+        modes.addView(modeButton("Nutrition", MODE_NUTRITION));
+        return modes;
+    }
+
+    private Button modeButton(String label, String mode) {
+        boolean selected = currentMode.equals(mode);
+        Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_BLUE : Color.TRANSPARENT);
+        button.setOnClickListener(view -> setAppMode(mode));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(38), 1);
+        params.leftMargin = dp(2);
+        params.rightMargin = dp(2);
+        button.setLayoutParams(params);
+        return button;
+    }
+
     private LinearLayout tabRow() {
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setPadding(dp(4), dp(4), dp(4), dp(4));
         tabs.setBackground(rounded(COLOR_TAB_TRACK, Color.TRANSPARENT, dp(20)));
-        tabs.addView(tabButton("Today", "today"));
-        tabs.addView(tabButton("Meds", "meds"));
-        tabs.addView(tabButton("Stock", "stock"));
-        tabs.addView(tabButton("Nutrition", "nutrition"));
+        if (MODE_NUTRITION.equals(currentMode)) {
+            tabs.addView(tabButton("Today", "nutrition_today"));
+            tabs.addView(tabButton("Meals", "nutrition_meals"));
+            tabs.addView(tabButton("Body", "nutrition_body"));
+        } else {
+            tabs.addView(tabButton("Today", "today"));
+            tabs.addView(tabButton("Meds", "meds"));
+            tabs.addView(tabButton("Stock", "stock"));
+        }
         return tabs;
     }
 
@@ -277,12 +335,21 @@ public class MainActivity extends Activity {
 
     private void renderCurrentTab() {
         content.removeAllViews();
+        if (MODE_NUTRITION.equals(currentMode)) {
+            if ("nutrition_meals".equals(currentTab)) {
+                renderNutritionMeals();
+            } else if ("nutrition_body".equals(currentTab)) {
+                renderNutritionBody();
+            } else {
+                renderNutritionToday();
+            }
+            return;
+        }
+
         if ("meds".equals(currentTab)) {
             renderMedications();
         } else if ("stock".equals(currentTab)) {
             renderInventory();
-        } else if ("nutrition".equals(currentTab)) {
-            renderNutrition();
         } else {
             renderToday();
         }
@@ -344,7 +411,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void renderNutrition() {
+    private void renderNutritionToday() {
         LocalDate today = LocalDate.now(zoneId);
         long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
         long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
@@ -377,6 +444,44 @@ public class MainActivity extends Activity {
         for (NutritionMeal meal : meals) {
             content.addView(mealCard(meal));
         }
+    }
+
+    private void renderNutritionMeals() {
+        LocalDate today = LocalDate.now(zoneId);
+        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
+        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
+        List<NutritionMeal> meals = store.getNutritionMeals(currentProfileId, start, end);
+
+        content.addView(sectionTitle("Meals", meals.isEmpty() ? "No meals logged today" : plural(meals.size(), "meal", "meals") + " today"));
+        Button addMeal = button("+ Add meal", COLOR_GREEN, COLOR_GREEN_SOFT);
+        addMeal.setOnClickListener(view -> showMealDialog(null));
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        addParams.topMargin = dp(4);
+        content.addView(addMeal, addParams);
+
+        if (meals.isEmpty()) {
+            emptyState("Add meals as you eat, or use your saved default meal names.", "Add meal", view -> showMealDialog(null));
+            return;
+        }
+
+        for (NutritionMeal meal : meals) {
+            content.addView(mealCard(meal));
+        }
+    }
+
+    private void renderNutritionBody() {
+        LocalDate today = LocalDate.now(zoneId);
+        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
+        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
+        int waterOunces = store.getWaterOunces(currentProfileId, start, end);
+        List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 10);
+
+        content.addView(sectionTitle("Body", "Track water intake and weight"));
+        content.addView(waterCard(waterOunces, start, end));
+        content.addView(weightCard(weights));
     }
 
     private View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
@@ -1470,6 +1575,28 @@ public class MainActivity extends Activity {
         long profileId = resolveProfileId(savedProfileId);
         preferences.edit().putLong(PREF_SELECTED_PROFILE_ID, profileId).apply();
         return profileId;
+    }
+
+    private String loadAppMode() {
+        String savedMode = getPreferences(MODE_PRIVATE).getString(PREF_APP_MODE, MODE_MEDICATION);
+        if (MODE_NUTRITION.equals(savedMode)) {
+            return MODE_NUTRITION;
+        }
+        return MODE_MEDICATION;
+    }
+
+    private void setAppMode(String mode) {
+        currentMode = MODE_NUTRITION.equals(mode) ? MODE_NUTRITION : MODE_MEDICATION;
+        currentTab = defaultTabForMode(currentMode);
+        getPreferences(MODE_PRIVATE)
+                .edit()
+                .putString(PREF_APP_MODE, currentMode)
+                .apply();
+        renderShell();
+    }
+
+    private String defaultTabForMode(String mode) {
+        return MODE_NUTRITION.equals(mode) ? "nutrition_today" : "today";
     }
 
     private long resolveProfileId(long profileId) {
