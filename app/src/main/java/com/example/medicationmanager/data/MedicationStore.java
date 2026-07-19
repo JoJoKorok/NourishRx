@@ -16,12 +16,14 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 7;
+    private static final int DATABASE_VERSION = 8;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
     private static final String TABLE_DOSE_LOGS = "dose_logs";
     private static final String TABLE_NUTRITION_MEALS = "nutrition_meals";
+    private static final String TABLE_NUTRITION_FOODS = "nutrition_foods";
+    private static final String TABLE_MEAL_FOOD_LOGS = "meal_food_logs";
     private static final String TABLE_WATER_ENTRIES = "water_entries";
     private static final String TABLE_WEIGHT_ENTRIES = "weight_entries";
     private static final String TABLE_MEAL_DEFAULTS = "meal_defaults";
@@ -95,6 +97,9 @@ public class MedicationStore extends SQLiteOpenHelper {
             createNutritionTables(db);
         }
         if (oldVersion < 7) {
+            createNutritionTables(db);
+        }
+        if (oldVersion < 8) {
             createNutritionTables(db);
         }
     }
@@ -219,6 +224,8 @@ public class MedicationStore extends SQLiteOpenHelper {
             );
             db.delete(TABLE_MEDICATIONS, "profile_id = ?", args);
             db.delete(TABLE_NUTRITION_MEALS, "profile_id = ?", args);
+            db.delete(TABLE_MEAL_FOOD_LOGS, "profile_id = ?", args);
+            db.delete(TABLE_NUTRITION_FOODS, "profile_id = ?", args);
             db.delete(TABLE_WATER_ENTRIES, "profile_id = ?", args);
             db.delete(TABLE_WEIGHT_ENTRIES, "profile_id = ?", args);
             db.delete(TABLE_MEAL_DEFAULTS, "profile_id = ?", args);
@@ -357,6 +364,117 @@ public class MedicationStore extends SQLiteOpenHelper {
     public void deleteNutritionMeal(long mealId) {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_NUTRITION_MEALS, "id = ?", new String[]{String.valueOf(mealId)});
+    }
+
+    public List<NutritionFood> getNutritionFoods(long profileId) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<NutritionFood> foods = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_NUTRITION_FOODS,
+                null,
+                "profile_id = ?",
+                new String[]{String.valueOf(profileId)},
+                null,
+                null,
+                "brand COLLATE NOCASE ASC, name COLLATE NOCASE ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                foods.add(nutritionFoodFrom(cursor));
+            }
+        }
+        return foods;
+    }
+
+    public NutritionFood getNutritionFood(long foodId) {
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.query(
+                TABLE_NUTRITION_FOODS,
+                null,
+                "id = ?",
+                new String[]{String.valueOf(foodId)},
+                null,
+                null,
+                null
+        )) {
+            if (cursor.moveToFirst()) {
+                return nutritionFoodFrom(cursor);
+            }
+        }
+        return null;
+    }
+
+    public long saveNutritionFood(NutritionFood food) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = nutritionFoodValues(food);
+        if (food.id > 0) {
+            db.update(TABLE_NUTRITION_FOODS, values, "id = ?", new String[]{String.valueOf(food.id)});
+            return food.id;
+        }
+        long id = db.insert(TABLE_NUTRITION_FOODS, null, values);
+        food.id = id;
+        return id;
+    }
+
+    public void deleteNutritionFood(long foodId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String[] args = new String[]{String.valueOf(foodId)};
+            db.delete(TABLE_MEAL_FOOD_LOGS, "food_id = ?", args);
+            db.delete(TABLE_NUTRITION_FOODS, "id = ?", args);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public List<MealFoodLog> getMealFoodLogs(long profileId, long startMillis, long endMillis) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<MealFoodLog> logs = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_MEAL_FOOD_LOGS,
+                null,
+                "profile_id = ? AND eaten_at >= ? AND eaten_at < ?",
+                new String[]{
+                        String.valueOf(profileId),
+                        String.valueOf(startMillis),
+                        String.valueOf(endMillis)
+                },
+                null,
+                null,
+                "eaten_at DESC, id DESC"
+        )) {
+            while (cursor.moveToNext()) {
+                long foodId = cursor.getLong(cursor.getColumnIndexOrThrow("food_id"));
+                NutritionFood food = getNutritionFood(foodId);
+                if (food != null) {
+                    logs.add(mealFoodLogFrom(cursor, food));
+                }
+            }
+        }
+        return logs;
+    }
+
+    public long saveMealFoodLog(MealFoodLog log) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("profile_id", log.profileId > 0 ? log.profileId : ensureDefaultProfile());
+        values.put("food_id", log.foodId);
+        values.put("meal_name", log.mealName);
+        values.put("servings", log.servings);
+        values.put("eaten_at", log.eatenAt);
+        if (log.id > 0) {
+            db.update(TABLE_MEAL_FOOD_LOGS, values, "id = ?", new String[]{String.valueOf(log.id)});
+            return log.id;
+        }
+        long id = db.insert(TABLE_MEAL_FOOD_LOGS, null, values);
+        log.id = id;
+        return id;
+    }
+
+    public void deleteMealFoodLog(long logId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_MEAL_FOOD_LOGS, "id = ?", new String[]{String.valueOf(logId)});
     }
 
     public List<String> getMealDefaults(long profileId) {
@@ -593,6 +711,32 @@ public class MedicationStore extends SQLiteOpenHelper {
         return values;
     }
 
+    private ContentValues nutritionFoodValues(NutritionFood food) {
+        ContentValues values = new ContentValues();
+        values.put("profile_id", food.profileId > 0 ? food.profileId : ensureDefaultProfile());
+        values.put("brand", food.brand);
+        values.put("name", food.name);
+        values.put("serving_size", food.servingSize);
+        values.put("servings_per_container", food.servingsPerContainer);
+        values.put("calories", food.calories);
+        values.put("total_fat_grams", food.totalFatGrams);
+        values.put("saturated_fat_grams", food.saturatedFatGrams);
+        values.put("trans_fat_grams", food.transFatGrams);
+        values.put("cholesterol_mg", food.cholesterolMg);
+        values.put("sodium_mg", food.sodiumMg);
+        values.put("total_carbs_grams", food.totalCarbsGrams);
+        values.put("fiber_grams", food.fiberGrams);
+        values.put("total_sugars_grams", food.totalSugarsGrams);
+        values.put("added_sugars_grams", food.addedSugarsGrams);
+        values.put("protein_grams", food.proteinGrams);
+        values.put("vitamin_d_mcg", food.vitaminDMcg);
+        values.put("calcium_mg", food.calciumMg);
+        values.put("iron_mg", food.ironMg);
+        values.put("potassium_mg", food.potassiumMg);
+        values.put("created_at", food.createdAt);
+        return values;
+    }
+
     private void createProfilesTable(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PROFILES + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -620,6 +764,49 @@ public class MedicationStore extends SQLiteOpenHelper {
                 ")");
         db.execSQL("CREATE INDEX IF NOT EXISTS nutrition_meals_profile_day ON " +
                 TABLE_NUTRITION_MEALS + "(profile_id, logged_at)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_NUTRITION_FOODS + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "brand TEXT NOT NULL DEFAULT '', " +
+                "name TEXT NOT NULL, " +
+                "serving_size TEXT NOT NULL DEFAULT '', " +
+                "servings_per_container REAL NOT NULL DEFAULT 0.0, " +
+                "calories INTEGER NOT NULL DEFAULT 0, " +
+                "total_fat_grams REAL NOT NULL DEFAULT 0.0, " +
+                "saturated_fat_grams REAL NOT NULL DEFAULT 0.0, " +
+                "trans_fat_grams REAL NOT NULL DEFAULT 0.0, " +
+                "cholesterol_mg REAL NOT NULL DEFAULT 0.0, " +
+                "sodium_mg REAL NOT NULL DEFAULT 0.0, " +
+                "total_carbs_grams REAL NOT NULL DEFAULT 0.0, " +
+                "fiber_grams REAL NOT NULL DEFAULT 0.0, " +
+                "total_sugars_grams REAL NOT NULL DEFAULT 0.0, " +
+                "added_sugars_grams REAL NOT NULL DEFAULT 0.0, " +
+                "protein_grams REAL NOT NULL DEFAULT 0.0, " +
+                "vitamin_d_mcg REAL NOT NULL DEFAULT 0.0, " +
+                "calcium_mg REAL NOT NULL DEFAULT 0.0, " +
+                "iron_mg REAL NOT NULL DEFAULT 0.0, " +
+                "potassium_mg REAL NOT NULL DEFAULT 0.0, " +
+                "created_at INTEGER NOT NULL, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS nutrition_foods_profile_name ON " +
+                TABLE_NUTRITION_FOODS + "(profile_id, brand, name)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_MEAL_FOOD_LOGS + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "food_id INTEGER NOT NULL, " +
+                "meal_name TEXT NOT NULL, " +
+                "servings REAL NOT NULL DEFAULT 1.0, " +
+                "eaten_at INTEGER NOT NULL, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE, " +
+                "FOREIGN KEY(food_id) REFERENCES " + TABLE_NUTRITION_FOODS + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS meal_food_logs_profile_day ON " +
+                TABLE_MEAL_FOOD_LOGS + "(profile_id, eaten_at)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS meal_food_logs_food ON " +
+                TABLE_MEAL_FOOD_LOGS + "(food_id)");
 
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_WATER_ENTRIES + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -767,6 +954,45 @@ public class MedicationStore extends SQLiteOpenHelper {
                 cursor.getFloat(cursor.getColumnIndexOrThrow("carbs_grams")),
                 cursor.getFloat(cursor.getColumnIndexOrThrow("fat_grams")),
                 cursor.getLong(cursor.getColumnIndexOrThrow("logged_at"))
+        );
+    }
+
+    private NutritionFood nutritionFoodFrom(Cursor cursor) {
+        return new NutritionFood(
+                cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("profile_id")),
+                cursor.getString(cursor.getColumnIndexOrThrow("brand")),
+                cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                cursor.getString(cursor.getColumnIndexOrThrow("serving_size")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("servings_per_container")),
+                cursor.getInt(cursor.getColumnIndexOrThrow("calories")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("total_fat_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("saturated_fat_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("trans_fat_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("cholesterol_mg")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("sodium_mg")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("total_carbs_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("fiber_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("total_sugars_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("added_sugars_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("protein_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("vitamin_d_mcg")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("calcium_mg")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("iron_mg")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("potassium_mg")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
+        );
+    }
+
+    private MealFoodLog mealFoodLogFrom(Cursor cursor, NutritionFood food) {
+        return new MealFoodLog(
+                cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("profile_id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("food_id")),
+                cursor.getString(cursor.getColumnIndexOrThrow("meal_name")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("servings")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("eaten_at")),
+                food
         );
     }
 
