@@ -16,11 +16,14 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 5;
+    private static final int DATABASE_VERSION = 6;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
     private static final String TABLE_DOSE_LOGS = "dose_logs";
+    private static final String TABLE_NUTRITION_MEALS = "nutrition_meals";
+    private static final String TABLE_WATER_ENTRIES = "water_entries";
+    private static final String TABLE_WEIGHT_ENTRIES = "weight_entries";
 
     public MedicationStore(Context context) {
         super(context.getApplicationContext(), DATABASE_NAME, null, DATABASE_VERSION);
@@ -60,6 +63,8 @@ public class MedicationStore extends SQLiteOpenHelper {
                 TABLE_DOSE_LOGS + "(medication_id, scheduled_at)");
         db.execSQL("CREATE INDEX dose_logs_scheduled_at ON " +
                 TABLE_DOSE_LOGS + "(scheduled_at)");
+
+        createNutritionTables(db);
     }
 
     @Override
@@ -84,6 +89,9 @@ public class MedicationStore extends SQLiteOpenHelper {
         }
         if (oldVersion < 5) {
             addMedicationColumnIfMissing(db, "dose_minutes", "TEXT NOT NULL DEFAULT ''");
+        }
+        if (oldVersion < 6) {
+            createNutritionTables(db);
         }
     }
 
@@ -206,6 +214,9 @@ public class MedicationStore extends SQLiteOpenHelper {
                     args
             );
             db.delete(TABLE_MEDICATIONS, "profile_id = ?", args);
+            db.delete(TABLE_NUTRITION_MEALS, "profile_id = ?", args);
+            db.delete(TABLE_WATER_ENTRIES, "profile_id = ?", args);
+            db.delete(TABLE_WEIGHT_ENTRIES, "profile_id = ?", args);
             int deleted = db.delete(TABLE_PROFILES, "id = ?", args);
             db.setTransactionSuccessful();
             return deleted > 0;
@@ -294,6 +305,137 @@ public class MedicationStore extends SQLiteOpenHelper {
         }
         medication.quantity = Math.max(0, medication.quantity + delta);
         saveMedication(medication);
+    }
+
+    public List<NutritionMeal> getNutritionMeals(long profileId, long startMillis, long endMillis) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<NutritionMeal> meals = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_NUTRITION_MEALS,
+                null,
+                "profile_id = ? AND logged_at >= ? AND logged_at < ?",
+                new String[]{
+                        String.valueOf(profileId),
+                        String.valueOf(startMillis),
+                        String.valueOf(endMillis)
+                },
+                null,
+                null,
+                "logged_at DESC, id DESC"
+        )) {
+            while (cursor.moveToNext()) {
+                meals.add(nutritionMealFrom(cursor));
+            }
+        }
+        return meals;
+    }
+
+    public long saveNutritionMeal(NutritionMeal meal) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("profile_id", meal.profileId > 0 ? meal.profileId : ensureDefaultProfile());
+        values.put("name", meal.name);
+        values.put("calories", meal.calories);
+        values.put("protein_grams", meal.proteinGrams);
+        values.put("carbs_grams", meal.carbsGrams);
+        values.put("fat_grams", meal.fatGrams);
+        values.put("logged_at", meal.loggedAt);
+        if (meal.id > 0) {
+            db.update(TABLE_NUTRITION_MEALS, values, "id = ?", new String[]{String.valueOf(meal.id)});
+            return meal.id;
+        }
+        long id = db.insert(TABLE_NUTRITION_MEALS, null, values);
+        meal.id = id;
+        return id;
+    }
+
+    public void deleteNutritionMeal(long mealId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_NUTRITION_MEALS, "id = ?", new String[]{String.valueOf(mealId)});
+    }
+
+    public void addWater(long profileId, int ounces) {
+        if (ounces <= 0) {
+            return;
+        }
+
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("profile_id", profileId > 0 ? profileId : ensureDefaultProfile());
+        values.put("ounces", ounces);
+        values.put("logged_at", System.currentTimeMillis());
+        db.insert(TABLE_WATER_ENTRIES, null, values);
+    }
+
+    public int getWaterOunces(long profileId, long startMillis, long endMillis) {
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.rawQuery(
+                "SELECT COALESCE(SUM(ounces), 0) AS total FROM " + TABLE_WATER_ENTRIES +
+                        " WHERE profile_id = ? AND logged_at >= ? AND logged_at < ?",
+                new String[]{
+                        String.valueOf(profileId),
+                        String.valueOf(startMillis),
+                        String.valueOf(endMillis)
+                }
+        )) {
+            if (cursor.moveToFirst()) {
+                return cursor.getInt(cursor.getColumnIndexOrThrow("total"));
+            }
+        }
+        return 0;
+    }
+
+    public void clearWater(long profileId, long startMillis, long endMillis) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(
+                TABLE_WATER_ENTRIES,
+                "profile_id = ? AND logged_at >= ? AND logged_at < ?",
+                new String[]{
+                        String.valueOf(profileId),
+                        String.valueOf(startMillis),
+                        String.valueOf(endMillis)
+                }
+        );
+    }
+
+    public long saveWeightEntry(WeightEntry entry) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("profile_id", entry.profileId > 0 ? entry.profileId : ensureDefaultProfile());
+        values.put("pounds", entry.pounds);
+        values.put("logged_at", entry.loggedAt);
+        if (entry.id > 0) {
+            db.update(TABLE_WEIGHT_ENTRIES, values, "id = ?", new String[]{String.valueOf(entry.id)});
+            return entry.id;
+        }
+        long id = db.insert(TABLE_WEIGHT_ENTRIES, null, values);
+        entry.id = id;
+        return id;
+    }
+
+    public List<WeightEntry> getWeightEntries(long profileId, int limit) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<WeightEntry> entries = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_WEIGHT_ENTRIES,
+                null,
+                "profile_id = ?",
+                new String[]{String.valueOf(profileId)},
+                null,
+                null,
+                "logged_at DESC, id DESC",
+                String.valueOf(Math.max(1, limit))
+        )) {
+            while (cursor.moveToNext()) {
+                entries.add(weightEntryFrom(cursor));
+            }
+        }
+        return entries;
+    }
+
+    public void deleteWeightEntry(long entryId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_WEIGHT_ENTRIES, "id = ?", new String[]{String.valueOf(entryId)});
     }
 
     public void logDose(long medicationId, long scheduledAt, String status) {
@@ -398,6 +540,42 @@ public class MedicationStore extends SQLiteOpenHelper {
                 ")");
     }
 
+    private void createNutritionTables(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_NUTRITION_MEALS + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "name TEXT NOT NULL, " +
+                "calories INTEGER NOT NULL DEFAULT 0, " +
+                "protein_grams REAL NOT NULL DEFAULT 0.0, " +
+                "carbs_grams REAL NOT NULL DEFAULT 0.0, " +
+                "fat_grams REAL NOT NULL DEFAULT 0.0, " +
+                "logged_at INTEGER NOT NULL, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS nutrition_meals_profile_day ON " +
+                TABLE_NUTRITION_MEALS + "(profile_id, logged_at)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_WATER_ENTRIES + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "ounces INTEGER NOT NULL DEFAULT 0, " +
+                "logged_at INTEGER NOT NULL, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS water_entries_profile_day ON " +
+                TABLE_WATER_ENTRIES + "(profile_id, logged_at)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_WEIGHT_ENTRIES + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "pounds REAL NOT NULL DEFAULT 0.0, " +
+                "logged_at INTEGER NOT NULL, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS weight_entries_profile_day ON " +
+                TABLE_WEIGHT_ENTRIES + "(profile_id, logged_at)");
+    }
+
     private long ensureDefaultProfile(SQLiteDatabase db) {
         try (Cursor cursor = db.query(
                 TABLE_PROFILES,
@@ -500,6 +678,28 @@ public class MedicationStore extends SQLiteOpenHelper {
                 cursor.getInt(cursor.getColumnIndexOrThrow("refill_threshold")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("active")) == 1,
                 cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
+        );
+    }
+
+    private NutritionMeal nutritionMealFrom(Cursor cursor) {
+        return new NutritionMeal(
+                cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("profile_id")),
+                cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                cursor.getInt(cursor.getColumnIndexOrThrow("calories")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("protein_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("carbs_grams")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("fat_grams")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("logged_at"))
+        );
+    }
+
+    private WeightEntry weightEntryFrom(Cursor cursor) {
+        return new WeightEntry(
+                cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("profile_id")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("pounds")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("logged_at"))
         );
     }
 }
