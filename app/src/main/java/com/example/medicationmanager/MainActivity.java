@@ -1641,6 +1641,15 @@ public class MainActivity extends Activity {
         results.setOrientation(LinearLayout.VERTICAL);
         form.addView(results);
 
+        Button loadMore = button("Load more", COLOR_GREEN, COLOR_GREEN_SOFT);
+        loadMore.setVisibility(View.GONE);
+        LinearLayout.LayoutParams loadMoreParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        loadMoreParams.topMargin = dp(12);
+        form.addView(loadMore, loadMoreParams);
+
         ScrollView scrollView = new ScrollView(this);
         scrollView.addView(form);
 
@@ -1650,7 +1659,10 @@ public class MainActivity extends Activity {
                 .setNegativeButton("Close", null)
                 .create();
 
-        search.setOnClickListener(view -> startOpenFoodFactsSearch(queryField, search, status, results));
+        final int[] nextPage = {1};
+        final String[] activeQuery = {""};
+        search.setOnClickListener(view -> startOpenFoodFactsSearch(queryField, search, loadMore, status, results, nextPage, activeQuery, true));
+        loadMore.setOnClickListener(view -> startOpenFoodFactsSearch(queryField, search, loadMore, status, results, nextPage, activeQuery, false));
 
         dialog.setOnShowListener(dialogInterface -> queryField.requestFocus());
         dialog.show();
@@ -1659,30 +1671,57 @@ public class MainActivity extends Activity {
     private void startOpenFoodFactsSearch(
             EditText queryField,
             Button search,
+            Button loadMore,
             TextView status,
-            LinearLayout results
+            LinearLayout results,
+            int[] nextPage,
+            String[] activeQuery,
+            boolean reset
     ) {
-        String query = queryField.getText().toString().trim();
+        String typedQuery = queryField.getText().toString().trim();
+        if (reset) {
+            activeQuery[0] = typedQuery;
+        }
+        String query = reset ? typedQuery : activeQuery[0];
         if (query.length() < 2) {
             queryField.setError("Enter a food name");
             return;
         }
 
+        int page = reset ? 1 : Math.max(1, nextPage[0]);
         search.setEnabled(false);
-        status.setText("Searching OpenFoodFacts...");
-        results.removeAllViews();
+        loadMore.setEnabled(false);
+        status.setText(reset ? "Searching OpenFoodFacts..." : "Loading more results...");
+        if (reset) {
+            nextPage[0] = 1;
+            results.removeAllViews();
+            loadMore.setVisibility(View.GONE);
+        }
 
         new Thread(() -> {
             try {
-                List<OpenFoodFactsClient.SearchResult> found = new OpenFoodFactsClient().searchFoods(query);
+                List<OpenFoodFactsClient.SearchResult> found = new OpenFoodFactsClient().searchFoods(query, page);
                 runOnUiThread(() -> {
                     search.setEnabled(true);
-                    status.setText(found.isEmpty() ? "No matching foods found." : plural(found.size(), "result", "results"));
-                    renderOpenFoodFactsResults(results, found);
+                    boolean hasMore = found.size() >= OpenFoodFactsClient.PAGE_SIZE;
+                    if (found.isEmpty() && reset) {
+                        status.setText("No matching foods found.");
+                    } else if (found.isEmpty()) {
+                        status.setText("No more results.");
+                    } else {
+                        status.setText(reset
+                                ? plural(found.size(), "result", "results")
+                                : "Added " + plural(found.size(), "more result", "more results"));
+                        appendOpenFoodFactsResults(results, found);
+                    }
+                    nextPage[0] = page + 1;
+                    loadMore.setVisibility(hasMore ? View.VISIBLE : View.GONE);
+                    loadMore.setEnabled(hasMore);
                 });
             } catch (Exception exception) {
                 runOnUiThread(() -> {
                     search.setEnabled(true);
+                    loadMore.setEnabled(true);
                     status.setText("Search failed. Check connection and try again.");
                     Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
                 });
@@ -1690,11 +1729,10 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void renderOpenFoodFactsResults(
+    private void appendOpenFoodFactsResults(
             LinearLayout container,
             List<OpenFoodFactsClient.SearchResult> results
     ) {
-        container.removeAllViews();
         for (OpenFoodFactsClient.SearchResult result : results) {
             container.addView(openFoodFactsResultCard(result));
         }

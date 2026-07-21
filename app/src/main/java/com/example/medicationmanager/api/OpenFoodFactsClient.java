@@ -19,13 +19,21 @@ import java.util.List;
 import java.util.Locale;
 
 public class OpenFoodFactsClient {
+    public static final int PAGE_SIZE = 12;
+
     private static final String USER_AGENT = "NourishRx/1.0 (local Android app)";
     private static final String SEARCH_URL = "https://search.openfoodfacts.org/search";
     private static final String PRODUCT_URL = "https://world.openfoodfacts.org/api/v3/product/";
 
     public List<SearchResult> searchFoods(String query) throws IOException, JSONException {
+        return searchFoods(query, 1);
+    }
+
+    public List<SearchResult> searchFoods(String query, int page) throws IOException, JSONException {
         String encodedQuery = URLEncoder.encode(query == null ? "" : query.trim(), StandardCharsets.UTF_8.name());
-        String url = SEARCH_URL + "?q=" + encodedQuery + "&langs=en&page_size=12&page=1";
+        String url = SEARCH_URL + "?q=" + encodedQuery +
+                "&langs=en&page_size=" + PAGE_SIZE +
+                "&page=" + Math.max(1, page);
         JSONObject root = new JSONObject(get(url));
         JSONArray hits = root.optJSONArray("hits");
         List<SearchResult> results = new ArrayList<>();
