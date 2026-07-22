@@ -1259,8 +1259,8 @@ public class MainActivity extends Activity {
             renderDoseTimes[0].run();
         });
 
-        EditText quantityField = field("Current quantity", String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
-        EditText thresholdField = field("Refill threshold", String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
+        EditText quantityField = field("Current quantity", existing == null ? "" : String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
+        EditText thresholdField = field("Refill threshold", existing == null ? "" : String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
         CheckBox activeBox = new CheckBox(this);
         activeBox.setText("Active reminders");
         activeBox.setTextColor(COLOR_INK);
@@ -1422,7 +1422,7 @@ public class MainActivity extends Activity {
         form.addView(foodSpinner, spinnerParams);
 
         EditText mealNameField = field("Meal name", presetName, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText servingsField = field("Servings eaten", existing == null ? "1" : formatFloatInput(existing.servings), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText servingsField = field("Servings eaten", existing == null ? "" : formatFloatInput(existing.servings), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
         final boolean[] customMealTime = {existing != null};
         final int[] mealMinutes = {minuteOfDay(baseTime)};
@@ -1454,7 +1454,7 @@ public class MainActivity extends Activity {
         dialog.setOnShowListener(dialogInterface -> {
             Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             save.setOnClickListener(view -> {
-                float servings = parseFloat(servingsField, 1.0f);
+                float servings = parseFloat(servingsField, 0.0f);
                 if (servings <= 0.0f) {
                     servingsField.setError("Enter servings");
                     return;
@@ -1519,22 +1519,23 @@ public class MainActivity extends Activity {
         EditText brandField = field("Brand", food.brand, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         EditText nameField = field("Food name", food.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         EditText servingSizeField = field("Serving size", food.servingSize, InputType.TYPE_CLASS_TEXT);
-        EditText servingsPerContainerField = field("Servings per container", formatFloatInput(food.servingsPerContainer), decimalInput);
-        EditText caloriesField = field("Calories", String.valueOf(food.calories), InputType.TYPE_CLASS_NUMBER);
-        EditText totalFatField = field("Total fat (g)", formatFloatInput(food.totalFatGrams), decimalInput);
-        EditText saturatedFatField = field("Saturated fat (g)", formatFloatInput(food.saturatedFatGrams), decimalInput);
-        EditText transFatField = field("Trans fat (g)", formatFloatInput(food.transFatGrams), decimalInput);
-        EditText cholesterolField = field("Cholesterol (mg)", formatFloatInput(food.cholesterolMg), decimalInput);
-        EditText sodiumField = field("Sodium (mg)", formatFloatInput(food.sodiumMg), decimalInput);
-        EditText carbsField = field("Total carbs (g)", formatFloatInput(food.totalCarbsGrams), decimalInput);
-        EditText fiberField = field("Fiber (g)", formatFloatInput(food.fiberGrams), decimalInput);
-        EditText totalSugarsField = field("Total sugars (g)", formatFloatInput(food.totalSugarsGrams), decimalInput);
-        EditText addedSugarsField = field("Added sugars (g)", formatFloatInput(food.addedSugarsGrams), decimalInput);
-        EditText proteinField = field("Protein (g)", formatFloatInput(food.proteinGrams), decimalInput);
-        EditText vitaminDField = field("Vitamin D (mcg)", formatFloatInput(food.vitaminDMcg), decimalInput);
-        EditText calciumField = field("Calcium (mg)", formatFloatInput(food.calciumMg), decimalInput);
-        EditText ironField = field("Iron (mg)", formatFloatInput(food.ironMg), decimalInput);
-        EditText potassiumField = field("Potassium (mg)", formatFloatInput(food.potassiumMg), decimalInput);
+        boolean prefillNutrition = existing != null;
+        EditText servingsPerContainerField = field("Servings per container", prefillNutrition ? formatFloatInput(food.servingsPerContainer) : "", decimalInput);
+        EditText caloriesField = field("Calories", prefillNutrition ? String.valueOf(food.calories) : "", InputType.TYPE_CLASS_NUMBER);
+        EditText totalFatField = field("Total fat (g)", prefillNutrition ? formatFloatInput(food.totalFatGrams) : "", decimalInput);
+        EditText saturatedFatField = field("Saturated fat (g)", prefillNutrition ? formatFloatInput(food.saturatedFatGrams) : "", decimalInput);
+        EditText transFatField = field("Trans fat (g)", prefillNutrition ? formatFloatInput(food.transFatGrams) : "", decimalInput);
+        EditText cholesterolField = field("Cholesterol (mg)", prefillNutrition ? formatFloatInput(food.cholesterolMg) : "", decimalInput);
+        EditText sodiumField = field("Sodium (mg)", prefillNutrition ? formatFloatInput(food.sodiumMg) : "", decimalInput);
+        EditText carbsField = field("Total carbs (g)", prefillNutrition ? formatFloatInput(food.totalCarbsGrams) : "", decimalInput);
+        EditText fiberField = field("Fiber (g)", prefillNutrition ? formatFloatInput(food.fiberGrams) : "", decimalInput);
+        EditText totalSugarsField = field("Total sugars (g)", prefillNutrition ? formatFloatInput(food.totalSugarsGrams) : "", decimalInput);
+        EditText addedSugarsField = field("Added sugars (g)", prefillNutrition ? formatFloatInput(food.addedSugarsGrams) : "", decimalInput);
+        EditText proteinField = field("Protein (g)", prefillNutrition ? formatFloatInput(food.proteinGrams) : "", decimalInput);
+        EditText vitaminDField = field("Vitamin D (mcg)", prefillNutrition ? formatFloatInput(food.vitaminDMcg) : "", decimalInput);
+        EditText calciumField = field("Calcium (mg)", prefillNutrition ? formatFloatInput(food.calciumMg) : "", decimalInput);
+        EditText ironField = field("Iron (mg)", prefillNutrition ? formatFloatInput(food.ironMg) : "", decimalInput);
+        EditText potassiumField = field("Potassium (mg)", prefillNutrition ? formatFloatInput(food.potassiumMg) : "", decimalInput);
 
         form.addView(fieldLabel("Food"));
         form.addView(brandField);
@@ -1661,14 +1662,15 @@ public class MainActivity extends Activity {
 
         final int[] nextPage = {1};
         final String[] activeQuery = {""};
-        search.setOnClickListener(view -> startOpenFoodFactsSearch(queryField, search, loadMore, status, results, nextPage, activeQuery, true));
-        loadMore.setOnClickListener(view -> startOpenFoodFactsSearch(queryField, search, loadMore, status, results, nextPage, activeQuery, false));
+        search.setOnClickListener(view -> startOpenFoodFactsSearch(scrollView, queryField, search, loadMore, status, results, nextPage, activeQuery, true));
+        loadMore.setOnClickListener(view -> startOpenFoodFactsSearch(scrollView, queryField, search, loadMore, status, results, nextPage, activeQuery, false));
 
         dialog.setOnShowListener(dialogInterface -> queryField.requestFocus());
         dialog.show();
     }
 
     private void startOpenFoodFactsSearch(
+            ScrollView scrollView,
             EditText queryField,
             Button search,
             Button loadMore,
@@ -1689,6 +1691,7 @@ public class MainActivity extends Activity {
         }
 
         int page = reset ? 1 : Math.max(1, nextPage[0]);
+        int previousScrollY = reset ? 0 : scrollView.getScrollY();
         search.setEnabled(false);
         loadMore.setEnabled(false);
         status.setText(reset ? "Searching OpenFoodFacts..." : "Loading more results...");
@@ -1713,6 +1716,9 @@ public class MainActivity extends Activity {
                                 ? plural(found.size(), "result", "results")
                                 : "Added " + plural(found.size(), "more result", "more results"));
                         appendOpenFoodFactsResults(results, found);
+                        if (!reset) {
+                            scrollView.post(() -> scrollView.scrollTo(0, previousScrollY));
+                        }
                     }
                     nextPage[0] = page + 1;
                     loadMore.setVisibility(hasMore ? View.VISIBLE : View.GONE);
@@ -2029,7 +2035,7 @@ public class MainActivity extends Activity {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText ouncesField = field("Ounces", "8", InputType.TYPE_CLASS_NUMBER);
+        EditText ouncesField = field("Ounces", "", InputType.TYPE_CLASS_NUMBER);
         form.addView(ouncesField);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
