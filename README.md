@@ -4,6 +4,8 @@ NourishRx is a native Android health organizer that combines medication scheduli
 
 This project is built as a personal portfolio app and is not medical software.
 
+Created by [Joseph Bekele](https://github.com/JoJoKorok).
+
 ## Features
 
 - Shared profiles for medication and nutrition records.

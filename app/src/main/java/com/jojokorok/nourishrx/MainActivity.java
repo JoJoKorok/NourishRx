@@ -66,6 +66,8 @@ public class MainActivity extends Activity {
     private static final String PREF_APP_MODE = "app_mode";
     private static final String MODE_MEDICATION = "medication";
     private static final String MODE_NUTRITION = "nutrition";
+    private static final String TAB_ABOUT = "about";
+    private static final String GITHUB_PROFILE_URL = "https://github.com/JoJoKorok";
 
     private static final int COLOR_SURFACE = Color.rgb(246, 242, 232);
     private static final int COLOR_CARD = Color.rgb(255, 252, 246);
@@ -228,14 +230,28 @@ public class MainActivity extends Activity {
         top.addView(add, compactButtonParams());
         panel.addView(top);
 
+        LinearLayout utilityActions = new LinearLayout(this);
+        utilityActions.setOrientation(LinearLayout.HORIZONTAL);
+
         Button profileButton = button("Manage profiles", COLOR_BLUE, Color.WHITE);
         profileButton.setOnClickListener(view -> showProfilesDialog());
-        LinearLayout.LayoutParams profileParams = new LinearLayout.LayoutParams(
+        utilityActions.addView(profileButton, weightedActionParams());
+
+        boolean showingAbout = TAB_ABOUT.equals(currentTab);
+        Button aboutButton = button("About", showingAbout ? Color.WHITE : COLOR_BLUE, showingAbout ? COLOR_BLUE : Color.WHITE);
+        aboutButton.setOnClickListener(view -> {
+            currentTab = TAB_ABOUT;
+            renderShell();
+        });
+        LinearLayout.LayoutParams aboutParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        utilityActions.addView(aboutButton, aboutParams);
+
+        LinearLayout.LayoutParams utilityParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
         );
-        profileParams.topMargin = dp(12);
-        panel.addView(profileButton, profileParams);
+        utilityParams.topMargin = dp(12);
+        panel.addView(utilityActions, utilityParams);
 
         LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -340,6 +356,11 @@ public class MainActivity extends Activity {
 
     private void renderCurrentTab() {
         content.removeAllViews();
+        if (TAB_ABOUT.equals(currentTab)) {
+            renderAbout();
+            return;
+        }
+
         if (MODE_NUTRITION.equals(currentMode)) {
             if ("nutrition_meals".equals(currentTab)) {
                 renderNutritionMeals();
@@ -360,6 +381,58 @@ public class MainActivity extends Activity {
         } else {
             renderToday();
         }
+    }
+
+    private void renderAbout() {
+        content.addView(sectionTitle("About", "Created by Joseph Bekele"));
+
+        LinearLayout hero = card();
+        hero.setBackground(roundedGradient(
+                new int[]{
+                        Color.rgb(229, 244, 238),
+                        Color.rgb(236, 242, 255),
+                        Color.rgb(255, 251, 239)
+                },
+                dp(24)
+        ));
+
+        TextView mark = text("NR", 24, Color.WHITE, Typeface.BOLD);
+        mark.setGravity(Gravity.CENTER);
+        mark.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(28)));
+        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(58), dp(58));
+        markParams.bottomMargin = dp(12);
+        hero.addView(mark, markParams);
+
+        TextView title = displayText("NourishRx", 32, COLOR_INK);
+        hero.addView(title);
+        TextView byline = text("Created by Joseph Bekele", 16, COLOR_GREEN, Typeface.BOLD);
+        byline.setPadding(0, dp(4), 0, 0);
+        hero.addView(byline);
+        TextView summary = text(
+                "A local-first Android organizer for medication scheduling, nutrition logging, water intake, weight tracking, and shared profiles.",
+                15,
+                COLOR_MUTED,
+                Typeface.BOLD
+        );
+        summary.setPadding(0, dp(12), 0, 0);
+        hero.addView(summary);
+        content.addView(hero);
+
+        LinearLayout project = card();
+        project.addView(text("Project", 19, COLOR_INK, Typeface.BOLD));
+        project.addView(infoLine("License", "MIT License"));
+        project.addView(infoLine("Privacy", "Local device storage; OpenFoodFacts is contacted only when searching online foods."));
+        project.addView(infoLine("GitHub", "github.com/JoJoKorok"));
+
+        Button github = button("Open GitHub", Color.WHITE, COLOR_BLUE);
+        github.setOnClickListener(view -> openExternalLink(GITHUB_PROFILE_URL));
+        LinearLayout.LayoutParams githubParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        githubParams.topMargin = dp(14);
+        project.addView(github, githubParams);
+        content.addView(project);
     }
 
     private void renderToday() {
@@ -2410,6 +2483,27 @@ public class MainActivity extends Activity {
             }
         }
         return names.size();
+    }
+
+    private View infoLine(String label, String value) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.VERTICAL);
+        line.setPadding(0, dp(12), 0, 0);
+
+        line.addView(text(label, 13, COLOR_MUTED, Typeface.BOLD));
+        TextView valueView = text(value, 15, COLOR_INK, Typeface.BOLD);
+        valueView.setPadding(0, dp(2), 0, 0);
+        line.addView(valueView);
+        return line;
+    }
+
+    private void openExternalLink(String url) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        try {
+            startActivity(intent);
+        } catch (Exception exception) {
+            Toast.makeText(this, "No browser is available for this link.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void handleAlertsTap() {
