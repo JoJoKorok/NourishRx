@@ -12,6 +12,7 @@ local.properties
 *.dex
 
 releases/
+.private-assets/
 
 *.jks
 *.keystore
