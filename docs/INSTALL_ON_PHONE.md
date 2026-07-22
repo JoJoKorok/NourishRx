@@ -1,50 +1,53 @@
-# Install or Update on Your Pixel
+# Install on an Android Phone
 
-Android apps install from an APK file. Updates work when the new APK uses the same `applicationId` and signing key as the app already on the phone.
-
-For your Pixel 7a, the easiest local updater is:
-
-```powershell
-cd "C:\Users\jbeke\Documents\Programming Projects\Personal\Medication_Manager"
-powershell -ExecutionPolicy Bypass -File .\tools\install-to-phone.ps1
-```
-
-For a packaged release APK, Command Prompt users can run:
-
-```cmd
-cd "C:\Users\jbeke\Documents\Programming Projects\Personal\Medication_Manager"
-.\releases\v1.0-debug\install-on-pixel-7a.cmd
-```
+Android apps can be installed from an APK file. Updates work when the new APK uses the same application ID and signing key as the app already installed on the phone.
 
 ## First-Time Phone Setup
 
-1. On the Pixel, open Settings.
+1. Open Settings on the Android phone.
 2. Go to About phone.
-3. Tap Build number 7 times.
+3. Tap Build number seven times to enable developer options.
 4. Go back to Settings.
 5. Open System > Developer options.
 6. Turn on USB debugging.
 7. Plug the phone into the computer.
-8. Tap Allow USB debugging on the phone.
+8. Approve the USB debugging prompt on the phone.
 
-## Build Then Install
+## Build the APK
 
-1. In Android Studio, open this project.
-2. Press Run once, or build the APK from Android Studio.
-3. Run the PowerShell install command above.
+In Android Studio:
 
-The script finds the newest APK under `app\build\outputs\apk` and runs:
+1. Open the repository.
+2. Let Gradle sync.
+3. Select the `app` configuration.
+4. Run the app on the connected phone, or build a debug APK.
+
+From the command line:
 
 ```powershell
-adb install -r <apk>
+.\gradlew.bat :app:assembleDebug
 ```
 
-That `-r` means replace/update the existing app while keeping app data.
+## Install or Update
 
-## Future Updates
+Install the debug APK with `adb`:
 
-1. Change the app code.
-2. Run or build it in Android Studio.
-3. Run `tools\install-to-phone.ps1` again.
+```powershell
+adb install -r app\build\outputs\apk\debug\app-debug.apk
+```
 
-If Android says the update is not allowed, uninstall the old app or make sure the APK is signed with the same key as the version already installed.
+The `-r` flag updates the existing app while keeping local app data when the package name and signing key match.
+
+## Troubleshooting
+
+If the phone rejects the update:
+
+- Make sure the new APK uses the same application ID as the installed app.
+- Make sure the new APK is signed with the same signing key as the installed app.
+- If this is a local test build and data can be removed, uninstall the old app and install again.
+
+If `adb` does not detect the phone:
+
+- Confirm USB debugging is enabled.
+- Try a different USB cable or USB port.
+- Run `adb devices` and approve any phone prompt.

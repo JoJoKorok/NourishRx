@@ -1,63 +1,109 @@
-# Medication Manager
+# NourishRx
 
-A native Android MVP for medication scheduling and organization.
+NourishRx is a native Android health organizer that combines medication scheduling with nutrition tracking. It supports shared profiles, medication reminders, local food logging, reusable nutrition facts, water intake, weight tracking, and optional food lookup through the public OpenFoodFacts API.
 
-## Current Features
+This project is built as a personal portfolio app and is not medical software.
 
-- Today view with each scheduled dose for active medications.
-- Named medication profiles for different people.
-- Manual medication entry with dosage, instructions, first dose time, daily frequency, stock count, and refill threshold.
-- Mark doses as taken or skipped.
-- Inventory view with low-stock warnings and quick stock adjustments.
+## Features
+
+- Shared profiles for medication and nutrition records.
+- Medication scheduling with custom dose times.
+- Dose logging with taken and skipped states.
+- Inventory tracking with refill warnings.
+- Local reminder notifications using Android alarms.
+- Reusable food database with brand, food name, serving size, servings per container, and nutrition facts.
+- Meal logging by saved food and serving amount.
+- Configurable default meal names.
+- Water intake and weight tracking.
+- Optional OpenFoodFacts search with inspect-before-save food imports.
 - Local SQLite storage on the device.
-- Android cloud backup disabled by default for medication privacy.
-- Android reminder notifications with Taken and Skip actions.
-- Reminder rescheduling after reboot, app update, and alarm-permission changes.
+- Android cloud backup disabled by default for privacy.
+
+## Screenshots
+
+Screenshots should be added before a public portfolio release. Recommended views:
+
+- Home screen with profile and mode switch.
+- Medication schedule view.
+- Food database view.
+- OpenFoodFacts search and inspect flow.
+- Meal log and daily nutrition summary.
+
+## Tech Stack
+
+- Java
+- Android framework views
+- SQLiteOpenHelper
+- AlarmManager
+- BroadcastReceiver
+- NotificationChannel
+- OpenFoodFacts public API
+- Gradle Android plugin
 
 ## Project Shape
 
-- Language: Java
-- UI: Android framework views, no AndroidX runtime dependency
-- Storage: `SQLiteOpenHelper`
-- Reminders: `AlarmManager`, `BroadcastReceiver`, `NotificationChannel`
-- Minimum SDK: 26
-- Target/compile SDK: 37
+```text
+app/src/main/java/com/example/medicationmanager/
+  MainActivity.java
+  api/OpenFoodFactsClient.java
+  data/
+  reminders/
 
-## Run It
+app/src/main/res/
+  drawable/
+  mipmap-anydpi-v26/
+  values/
 
-This workspace did not have Gradle or an Android SDK available, so the app source is scaffolded for Android Studio.
+docs/
+  INSTALL_ON_PHONE.md
+  RELEASE_PROCESS.md
+```
 
-1. Open this folder in Android Studio.
-2. Install SDK 37 if Android Studio prompts for it.
-3. Sync the Gradle project.
-4. Run the `app` configuration on an emulator or Android phone.
+## Build
 
-For command-line builds on a machine with Gradle installed:
+Open the repository in Android Studio, let Gradle sync, then run the `app` configuration on an emulator or Android device.
+
+Command-line debug build:
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+```
+
+If the Gradle wrapper has not been generated on a fresh clone, create it from a machine with Gradle installed:
 
 ```powershell
 gradle wrapper --gradle-version 9.4.1
-.\gradlew.bat assembleDebug
+.\gradlew.bat :app:assembleDebug
 ```
 
-Android 13 and newer require notification permission before reminders can appear. Android 12 and newer may also ask for exact alarm access; the app falls back to inexact alarms when exact alarm access is not granted.
+## Install on Android
 
-## Safety and Privacy Notes
-
-This is a personal/portfolio medication organizer, not medical advice or certified medical software. Always confirm medication names, dosages, and schedules with the prescription label or a clinician.
-
-## Install on a Phone
-
-Use the local install/update script after Android Studio builds an APK:
+Build a debug APK, then install it with Android Studio or `adb`:
 
 ```powershell
-.\tools\install-to-phone.ps1
+adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-See `docs/INSTALL_ON_PHONE.md` for Pixel setup and update steps.
+The `-r` flag updates an existing install while keeping local app data when the package name and signing key match.
 
-## Main Files
+See [docs/INSTALL_ON_PHONE.md](docs/INSTALL_ON_PHONE.md) for setup details.
 
-- `app/src/main/java/com/example/medicationmanager/MainActivity.java`
-- `app/src/main/java/com/example/medicationmanager/data/MedicationStore.java`
-- `app/src/main/java/com/example/medicationmanager/reminders/ReminderScheduler.java`
-- `app/src/main/AndroidManifest.xml`
+## Privacy
+
+Medication, profile, nutrition, water, and weight data are stored locally on the device. OpenFoodFacts is contacted only when a user explicitly searches for foods online. The app does not include a private OpenFoodFacts API key.
+
+See [PRIVACY.md](PRIVACY.md) for more detail.
+
+## Medical Disclaimer
+
+NourishRx is a personal organizer and portfolio project. It is not a substitute for professional medical advice, diagnosis, treatment, medication counseling, or nutrition counseling. Medication names, schedules, and nutrition information should be verified against trusted sources such as prescription labels, clinicians, pharmacists, and official nutrition labels.
+
+## Release Notes
+
+Generated APK files should not be committed to the repository. Publish installable APKs through GitHub Releases instead.
+
+See [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) for a suggested release workflow.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
