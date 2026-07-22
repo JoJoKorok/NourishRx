@@ -1,4 +1,4 @@
-package com.example.medicationmanager.reminders;
+package com.jojokorok.nourishrx.reminders;
 
 import android.Manifest;
 import android.app.Notification;
@@ -10,11 +10,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
-import com.example.medicationmanager.MainActivity;
-import com.example.medicationmanager.R;
-import com.example.medicationmanager.data.Medication;
-import com.example.medicationmanager.data.MedicationStore;
-import com.example.medicationmanager.data.Profile;
+import com.jojokorok.nourishrx.MainActivity;
+import com.jojokorok.nourishrx.R;
+import com.jojokorok.nourishrx.data.Medication;
+import com.jojokorok.nourishrx.data.MedicationStore;
+import com.jojokorok.nourishrx.data.Profile;
 
 public class ReminderReceiver extends BroadcastReceiver {
     @Override

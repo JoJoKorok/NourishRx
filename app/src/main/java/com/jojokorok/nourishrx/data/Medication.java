@@ -1,4 +1,4 @@
-package com.example.medicationmanager.data;
+package com.jojokorok.nourishrx.data;
 
 import org.json.JSONArray;
 import org.json.JSONException;

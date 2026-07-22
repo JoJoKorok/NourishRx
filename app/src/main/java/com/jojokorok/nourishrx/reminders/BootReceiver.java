@@ -1,4 +1,4 @@
-package com.example.medicationmanager.reminders;
+package com.jojokorok.nourishrx.reminders;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

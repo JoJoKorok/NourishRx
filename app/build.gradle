@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace "com.example.medicationmanager"
+    namespace "com.jojokorok.nourishrx"
     compileSdk 37
 
     defaultConfig {
-        applicationId "com.example.medicationmanager.nutritiondev"
+        applicationId "com.jojokorok.nourishrx"
         minSdk 26
         targetSdk 37
         versionCode 1

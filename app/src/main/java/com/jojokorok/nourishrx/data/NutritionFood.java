@@ -1,4 +1,4 @@
-package com.example.medicationmanager.data;
+package com.jojokorok.nourishrx.data;
 
 public class NutritionFood {
     public long id;

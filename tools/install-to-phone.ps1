@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Installs or updates the Medication Manager APK on a connected Android phone.
+Installs or updates the NourishRx APK on a connected Android phone.
 
 .DESCRIPTION
 This script uses adb install -r so the app is replaced in place while keeping
@@ -176,4 +176,4 @@ Write-Host "  $device"
 $adbArgs = @("-s", $device, "install", "-r", $apk)
 Invoke-CheckedCommand -FilePath $adb -Arguments $adbArgs
 
-Write-Host "Done. Open Medication Manager on your phone."
+Write-Host "Done. Open NourishRx on your phone."

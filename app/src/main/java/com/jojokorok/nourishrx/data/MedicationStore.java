@@ -1,4 +1,4 @@
-package com.example.medicationmanager.data;
+package com.jojokorok.nourishrx.data;
 
 import android.content.ContentValues;
 import android.content.Context;

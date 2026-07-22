@@ -30,3 +30,13 @@ app/build/outputs/apk/debug/
 4. Include a short changelog and install notes.
 
 Generated APK files should live in GitHub Releases, not in Git history.
+
+## Current Package Identity
+
+The public Android application ID is:
+
+```text
+com.jojokorok.nourishrx
+```
+
+Changing this ID later creates a separate Android app install rather than an in-place update.

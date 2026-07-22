@@ -1,4 +1,4 @@
-package com.example.medicationmanager.reminders;
+package com.jojokorok.nourishrx.reminders;
 
 import android.app.AlarmManager;
 import android.app.NotificationChannel;
@@ -10,16 +10,16 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
-import com.example.medicationmanager.data.Medication;
-import com.example.medicationmanager.data.MedicationStore;
+import com.jojokorok.nourishrx.data.Medication;
+import com.jojokorok.nourishrx.data.MedicationStore;
 
 import java.time.ZoneId;
 import java.util.List;
 
 public final class ReminderScheduler {
-    public static final String ACTION_REMINDER = "com.example.medicationmanager.ACTION_REMINDER";
-    public static final String ACTION_TAKEN = "com.example.medicationmanager.ACTION_TAKEN";
-    public static final String ACTION_SKIPPED = "com.example.medicationmanager.ACTION_SKIPPED";
+    public static final String ACTION_REMINDER = "com.jojokorok.nourishrx.ACTION_REMINDER";
+    public static final String ACTION_TAKEN = "com.jojokorok.nourishrx.ACTION_TAKEN";
+    public static final String ACTION_SKIPPED = "com.jojokorok.nourishrx.ACTION_SKIPPED";
     public static final String EXTRA_MEDICATION_ID = "extra_medication_id";
     public static final String EXTRA_SCHEDULED_AT = "extra_scheduled_at";
     public static final String CHANNEL_ID = "medication_reminders";

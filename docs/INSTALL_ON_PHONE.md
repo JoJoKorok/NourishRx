@@ -2,6 +2,8 @@
 
 Android apps can be installed from an APK file. Updates work when the new APK uses the same application ID and signing key as the app already installed on the phone.
 
+The public NourishRx application ID is `com.jojokorok.nourishrx`.
+
 ## First-Time Phone Setup
 
 1. Open Settings on the Android phone.

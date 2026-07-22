@@ -1,6 +1,6 @@
-package com.example.medicationmanager.api;
+package com.jojokorok.nourishrx.api;
 
-import com.example.medicationmanager.data.NutritionFood;
+import com.jojokorok.nourishrx.data.NutritionFood;
 
 import org.json.JSONArray;
 import org.json.JSONException;

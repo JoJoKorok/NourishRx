@@ -1,4 +1,4 @@
-package com.example.medicationmanager;
+package com.jojokorok.nourishrx;
 
 import android.Manifest;
 import android.app.Activity;
@@ -38,14 +38,14 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.medicationmanager.api.OpenFoodFactsClient;
-import com.example.medicationmanager.data.MealFoodLog;
-import com.example.medicationmanager.data.Medication;
-import com.example.medicationmanager.data.MedicationStore;
-import com.example.medicationmanager.data.NutritionFood;
-import com.example.medicationmanager.data.Profile;
-import com.example.medicationmanager.data.WeightEntry;
-import com.example.medicationmanager.reminders.ReminderScheduler;
+import com.jojokorok.nourishrx.api.OpenFoodFactsClient;
+import com.jojokorok.nourishrx.data.MealFoodLog;
+import com.jojokorok.nourishrx.data.Medication;
+import com.jojokorok.nourishrx.data.MedicationStore;
+import com.jojokorok.nourishrx.data.NutritionFood;
+import com.jojokorok.nourishrx.data.Profile;
+import com.jojokorok.nourishrx.data.WeightEntry;
+import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 
 import java.time.Instant;
 import java.time.LocalDate;

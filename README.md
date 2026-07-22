@@ -43,7 +43,7 @@ Screenshots should be added before a public portfolio release. Recommended views
 ## Project Shape
 
 ```text
-app/src/main/java/com/example/medicationmanager/
+app/src/main/java/com/jojokorok/nourishrx/
   MainActivity.java
   api/OpenFoodFactsClient.java
   data/
@@ -69,12 +69,7 @@ Command-line debug build:
 .\gradlew.bat :app:assembleDebug
 ```
 
-If the Gradle wrapper has not been generated on a fresh clone, create it from a machine with Gradle installed:
-
-```powershell
-gradle wrapper --gradle-version 9.4.1
-.\gradlew.bat :app:assembleDebug
-```
+On macOS or Linux, use `./gradlew :app:assembleDebug`.
 
 ## Install on Android
 
