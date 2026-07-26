@@ -621,6 +621,10 @@ public class MainActivity extends Activity {
         Button searchFood = button("Find online", COLOR_BLUE, COLOR_BLUE_SOFT);
         searchFood.setOnClickListener(view -> showOpenFoodFactsSearchDialog());
         actions.addView(searchFood, weightedActionParams());
+
+        Button scanBarcode = button("Scan barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
+        scanBarcode.setOnClickListener(view -> showBarcodeScannerEntryPoint());
+        actions.addView(scanBarcode, weightedActionParams());
         content.addView(actions);
 
         if (foods.isEmpty()) {
@@ -631,6 +635,18 @@ public class MainActivity extends Activity {
         for (NutritionFood food : foods) {
             content.addView(foodCard(food));
         }
+    }
+
+    private void showBarcodeScannerEntryPoint() {
+        if (!requirePremium(PremiumFeature.BARCODE_SCANNING)) {
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Scan barcode")
+                .setMessage("Camera barcode scanning will open here after the scanner dependency and camera permission flow are added.")
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void renderNutritionBody() {
