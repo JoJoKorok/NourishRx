@@ -42,6 +42,12 @@ public class PremiumManager {
         return PREMIUM_PURCHASE_MODEL;
     }
 
+    public String purchaseUnavailableMessage() {
+        return PREMIUM_PRODUCT_NAME
+                + " is planned as a one-time purchase through Google Play Billing. "
+                + "Purchase handling is not connected in this build yet.";
+    }
+
     public long premiumVerifiedAt() {
         return preferences.getLong(KEY_CACHED_VERIFIED_AT, 0);
     }

@@ -453,6 +453,18 @@ public class MainActivity extends Activity {
         );
         premiumParams.topMargin = dp(14);
         plan.addView(premium, premiumParams);
+
+        if (!premiumManager.isPremiumActive()) {
+            Button unlock = button("Unlock premium", Color.WHITE, COLOR_GREEN);
+            unlock.setOnClickListener(view -> showPremiumPurchaseUnavailableDialog());
+            LinearLayout.LayoutParams unlockParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(46)
+            );
+            unlockParams.topMargin = dp(10);
+            plan.addView(unlock, unlockParams);
+        }
+
         content.addView(plan);
     }
 
@@ -494,6 +506,15 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("NourishRx Premium")
                 .setMessage(message.toString())
+                .setNegativeButton("Close", null)
+                .setPositiveButton("Unlock premium", (dialog, which) -> showPremiumPurchaseUnavailableDialog())
+                .show();
+    }
+
+    private void showPremiumPurchaseUnavailableDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Unlock premium")
+                .setMessage(premiumManager.purchaseUnavailableMessage())
                 .setPositiveButton("OK", null)
                 .show();
     }
