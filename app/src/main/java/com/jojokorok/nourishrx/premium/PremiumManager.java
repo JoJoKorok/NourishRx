@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 
 public class PremiumManager {
     public static final String PREMIUM_PRODUCT_ID = "nourishrx_premium";
+    public static final String PREMIUM_PRODUCT_NAME = "NourishRx Premium";
+    public static final String PREMIUM_PURCHASE_MODEL = "One-time purchase";
 
     private static final String PREFS_NAME = "premium_access";
     private static final String KEY_CACHED_PREMIUM_ACTIVE = "cached_premium_active";
@@ -21,11 +23,23 @@ public class PremiumManager {
     }
 
     public boolean canUse(PremiumFeature feature) {
+        if (feature.tier != PremiumTier.ONE_TIME_PREMIUM) {
+            return false;
+        }
+
         return isPremiumActive();
     }
 
     public String planLabel() {
         return isPremiumActive() ? "Premium" : "Free";
+    }
+
+    public String premiumProductLabel() {
+        return PREMIUM_PRODUCT_NAME;
+    }
+
+    public String purchaseModelLabel() {
+        return PREMIUM_PURCHASE_MODEL;
     }
 
     public long premiumVerifiedAt() {

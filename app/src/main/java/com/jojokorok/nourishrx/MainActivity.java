@@ -47,6 +47,7 @@ import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
+import com.jojokorok.nourishrx.premium.PremiumTier;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 
 import java.time.Instant;
@@ -441,7 +442,8 @@ public class MainActivity extends Activity {
         LinearLayout plan = card();
         plan.addView(text("Plan", 19, COLOR_INK, Typeface.BOLD));
         plan.addView(infoLine("Current access", premiumManager.planLabel()));
-        plan.addView(infoLine("Premium unlock", "Google Play Billing will connect here before paid features are released."));
+        plan.addView(infoLine("Premium model", premiumManager.premiumProductLabel() + " - " + premiumManager.purchaseModelLabel()));
+        plan.addView(infoLine("Future sync", "Cloud backup and cross-device sync will stay separate from the one-time unlock."));
 
         Button premium = button("View premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
         premium.setOnClickListener(view -> showPremiumOverviewDialog());
@@ -464,9 +466,13 @@ public class MainActivity extends Activity {
     }
 
     private void showPremiumFeatureDialog(PremiumFeature feature) {
+        String accessNote = feature.tier == PremiumTier.ONE_TIME_PREMIUM
+                ? "This is planned for NourishRx Premium, a one-time purchase. Google Play Billing is not connected in this build yet."
+                : "This is planned for a future sync subscription, separate from the one-time Premium unlock.";
+
         new AlertDialog.Builder(this)
                 .setTitle(feature.title)
-                .setMessage(feature.description + "\n\nThis is planned as a premium feature. Google Play Billing is not connected in this build yet.")
+                .setMessage(feature.description + "\n\n" + accessNote)
                 .setNegativeButton("Close", null)
                 .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
                 .show();
@@ -474,18 +480,31 @@ public class MainActivity extends Activity {
 
     private void showPremiumOverviewDialog() {
         StringBuilder message = new StringBuilder();
-        message.append("Current access: ").append(premiumManager.planLabel()).append("\n\n");
-        message.append("Planned premium features:\n");
-        for (PremiumFeature feature : PremiumFeature.values()) {
-            message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
-        }
-        message.append("\nPaid access is not available until Google Play Billing is added.");
+        message.append("Current access: ").append(premiumManager.planLabel()).append("\n");
+        message.append("Premium model: ")
+                .append(premiumManager.premiumProductLabel())
+                .append(" - ")
+                .append(premiumManager.purchaseModelLabel())
+                .append("\n\n");
+        appendPremiumFeatureGroup(message, PremiumTier.ONE_TIME_PREMIUM);
+        message.append("\n");
+        appendPremiumFeatureGroup(message, PremiumTier.SYNC_SUBSCRIPTION);
+        message.append("\nPurchases are not available until Google Play Billing is added.");
 
         new AlertDialog.Builder(this)
                 .setTitle("NourishRx Premium")
                 .setMessage(message.toString())
                 .setPositiveButton("OK", null)
                 .show();
+    }
+
+    private void appendPremiumFeatureGroup(StringBuilder message, PremiumTier tier) {
+        message.append(tier.label).append(":\n");
+        for (PremiumFeature feature : PremiumFeature.values()) {
+            if (feature.tier == tier) {
+                message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
+            }
+        }
     }
 
     private void renderToday() {
