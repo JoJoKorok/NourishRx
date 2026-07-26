@@ -45,6 +45,8 @@ import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.NutritionFood;
 import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.WeightEntry;
+import com.jojokorok.nourishrx.premium.PremiumFeature;
+import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 
 import java.time.Instant;
@@ -90,6 +92,7 @@ public class MainActivity extends Activity {
     private final DateTimeFormatter shortDateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault());
 
     private MedicationStore store;
+    private PremiumManager premiumManager;
     private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
@@ -101,6 +104,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         store = new MedicationStore(this);
+        premiumManager = new PremiumManager(this);
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
@@ -433,6 +437,55 @@ public class MainActivity extends Activity {
         githubParams.topMargin = dp(14);
         project.addView(github, githubParams);
         content.addView(project);
+
+        LinearLayout plan = card();
+        plan.addView(text("Plan", 19, COLOR_INK, Typeface.BOLD));
+        plan.addView(infoLine("Current access", premiumManager.planLabel()));
+        plan.addView(infoLine("Premium unlock", "Google Play Billing will connect here before paid features are released."));
+
+        Button premium = button("View premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
+        premium.setOnClickListener(view -> showPremiumOverviewDialog());
+        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        premiumParams.topMargin = dp(14);
+        plan.addView(premium, premiumParams);
+        content.addView(plan);
+    }
+
+    private boolean requirePremium(PremiumFeature feature) {
+        if (premiumManager.canUse(feature)) {
+            return true;
+        }
+
+        showPremiumFeatureDialog(feature);
+        return false;
+    }
+
+    private void showPremiumFeatureDialog(PremiumFeature feature) {
+        new AlertDialog.Builder(this)
+                .setTitle(feature.title)
+                .setMessage(feature.description + "\n\nThis is planned as a premium feature. Google Play Billing is not connected in this build yet.")
+                .setNegativeButton("Close", null)
+                .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
+                .show();
+    }
+
+    private void showPremiumOverviewDialog() {
+        StringBuilder message = new StringBuilder();
+        message.append("Current access: ").append(premiumManager.planLabel()).append("\n\n");
+        message.append("Planned premium features:\n");
+        for (PremiumFeature feature : PremiumFeature.values()) {
+            message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
+        }
+        message.append("\nPaid access is not available until Google Play Billing is added.");
+
+        new AlertDialog.Builder(this)
+                .setTitle("NourishRx Premium")
+                .setMessage(message.toString())
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void renderToday() {
