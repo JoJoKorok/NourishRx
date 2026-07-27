@@ -865,6 +865,7 @@ public class MainActivity extends Activity {
         details.addView(text(medication.name, 19, COLOR_INK, Typeface.BOLD));
         details.addView(text(medication.dosage, 14, COLOR_MUTED, Typeface.NORMAL));
         details.addView(text(medication.doseCountLabel() + " at " + medication.scheduleSummary(), 14, COLOR_MUTED, Typeface.NORMAL));
+        details.addView(text(medication.repeatReminderLabel(), 13, COLOR_MUTED, Typeface.NORMAL));
         if (!medication.instructions.isEmpty()) {
             details.addView(text(medication.instructions, 14, COLOR_MUTED, Typeface.NORMAL));
         }
@@ -1299,6 +1300,7 @@ public class MainActivity extends Activity {
                 existing.doseMinutes(),
                 existing.quantity,
                 existing.refillThreshold,
+                existing.repeatReminderMinutes,
                 existing.active,
                 existing.createdAt
         );
@@ -1321,6 +1323,19 @@ public class MainActivity extends Activity {
         final Runnable[] renderDoseTimes = new Runnable[1];
         renderDoseTimes[0] = () -> renderDoseTimeRows(doseTimesList, frequencySummary, selectedDoseMinutes, renderDoseTimes[0]);
         renderDoseTimes[0].run();
+
+        int[] selectedRepeatReminderMinutes = new int[]{medication.repeatReminderMinutes};
+        TextView repeatSummary = text("", 13, COLOR_MUTED, Typeface.BOLD);
+        LinearLayout repeatOptions = new LinearLayout(this);
+        repeatOptions.setOrientation(LinearLayout.VERTICAL);
+        final Runnable[] renderRepeatOptions = new Runnable[1];
+        renderRepeatOptions[0] = () -> renderRepeatReminderOptions(
+                repeatOptions,
+                repeatSummary,
+                selectedRepeatReminderMinutes,
+                renderRepeatOptions[0]
+        );
+        renderRepeatOptions[0].run();
 
         Button addDoseTime = button("+ Dose time", COLOR_GREEN, COLOR_GREEN_SOFT);
         addDoseTime.setOnClickListener(view -> {
@@ -1352,6 +1367,9 @@ public class MainActivity extends Activity {
         );
         addDoseParams.topMargin = dp(8);
         form.addView(addDoseTime, addDoseParams);
+        form.addView(fieldLabel("Repeat alerts"));
+        form.addView(repeatSummary);
+        form.addView(repeatOptions);
         form.addView(quantityField);
         form.addView(thresholdField);
         form.addView(activeBox);
@@ -1391,6 +1409,7 @@ public class MainActivity extends Activity {
                         selectedDoseMinutes,
                         parseInt(quantityField, 0),
                         parseInt(thresholdField, 0),
+                        selectedRepeatReminderMinutes[0],
                         activeBox.isChecked(),
                         medication.createdAt
                 );
@@ -2244,6 +2263,112 @@ public class MainActivity extends Activity {
                 false
         );
         dialog.show();
+    }
+
+    private void renderRepeatReminderOptions(
+            LinearLayout container,
+            TextView repeatSummary,
+            int[] repeatReminderMinutes,
+            Runnable refresh
+    ) {
+        repeatReminderMinutes[0] = Math.max(0, Math.min(Medication.MAX_REPEAT_REMINDER_MINUTES, repeatReminderMinutes[0]));
+        repeatSummary.setText(Medication.repeatReminderLabel(repeatReminderMinutes[0]));
+        container.removeAllViews();
+
+        addRepeatReminderRow(container, repeatReminderMinutes, refresh, new int[]{0, 5, 10});
+        addRepeatReminderRow(container, repeatReminderMinutes, refresh, new int[]{30, 60, -1});
+    }
+
+    private void addRepeatReminderRow(
+            LinearLayout container,
+            int[] repeatReminderMinutes,
+            Runnable refresh,
+            int[] options
+    ) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(8), 0, 0);
+
+        for (int option : options) {
+            boolean selected = option < 0
+                    ? isCustomRepeatReminder(repeatReminderMinutes[0])
+                    : repeatReminderMinutes[0] == option;
+            Button optionButton = button(
+                    repeatReminderOptionLabel(option),
+                    selected ? Color.WHITE : COLOR_BLUE,
+                    selected ? COLOR_BLUE : COLOR_BLUE_SOFT
+            );
+            optionButton.setOnClickListener(view -> {
+                if (option < 0) {
+                    showCustomRepeatReminderDialog(repeatReminderMinutes, refresh);
+                    return;
+                }
+                repeatReminderMinutes[0] = option;
+                refresh.run();
+            });
+
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1);
+            if (row.getChildCount() > 0) {
+                params.leftMargin = dp(8);
+            }
+            row.addView(optionButton, params);
+        }
+
+        container.addView(row);
+    }
+
+    private void showCustomRepeatReminderDialog(int[] repeatReminderMinutes, Runnable refresh) {
+        String currentValue = isCustomRepeatReminder(repeatReminderMinutes[0])
+                ? String.valueOf(repeatReminderMinutes[0])
+                : "";
+        EditText minutesField = field("Minutes between alerts", currentValue, InputType.TYPE_CLASS_NUMBER);
+        minutesField.setSelectAllOnFocus(true);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Custom repeat")
+                .setView(minutesField)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", null)
+                .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            save.setOnClickListener(view -> {
+                int minutes = parseInt(minutesField, 0);
+                if (minutes <= 0) {
+                    minutesField.setError("Enter minutes");
+                    return;
+                }
+                if (minutes > Medication.MAX_REPEAT_REMINDER_MINUTES) {
+                    minutesField.setError("Use 1440 minutes or less");
+                    return;
+                }
+
+                repeatReminderMinutes[0] = minutes;
+                refresh.run();
+                dialog.dismiss();
+            });
+        });
+
+        dialog.show();
+    }
+
+    private boolean isCustomRepeatReminder(int minutes) {
+        return minutes > 0 && minutes != 5 && minutes != 10 && minutes != 30 && minutes != 60;
+    }
+
+    private String repeatReminderOptionLabel(int minutes) {
+        if (minutes < 0) {
+            return "Custom";
+        }
+        if (minutes == 0) {
+            return "Off";
+        }
+        if (minutes == 60) {
+            return "1 hr";
+        }
+        return minutes + " min";
     }
 
     private void showMealTimePicker(Button timeButton, int[] mealMinutes, boolean[] customMealTime) {
