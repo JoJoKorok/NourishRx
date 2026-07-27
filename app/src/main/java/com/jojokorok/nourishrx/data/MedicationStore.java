@@ -16,7 +16,7 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 8;
+    private static final int DATABASE_VERSION = 9;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
@@ -48,6 +48,7 @@ public class MedicationStore extends SQLiteOpenHelper {
                 "dose_minutes TEXT NOT NULL DEFAULT '', " +
                 "quantity INTEGER NOT NULL, " +
                 "refill_threshold INTEGER NOT NULL, " +
+                "repeat_reminder_minutes INTEGER NOT NULL DEFAULT 0, " +
                 "active INTEGER NOT NULL DEFAULT 1, " +
                 "created_at INTEGER NOT NULL, " +
                 "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
@@ -101,6 +102,9 @@ public class MedicationStore extends SQLiteOpenHelper {
         }
         if (oldVersion < 8) {
             createNutritionTables(db);
+        }
+        if (oldVersion < 9) {
+            addMedicationColumnIfMissing(db, "repeat_reminder_minutes", "INTEGER NOT NULL DEFAULT 0");
         }
     }
 
@@ -706,6 +710,7 @@ public class MedicationStore extends SQLiteOpenHelper {
         values.put("dose_minutes", Medication.serializeDoseMinutes(medication.doseMinutes()));
         values.put("quantity", medication.quantity);
         values.put("refill_threshold", medication.refillThreshold);
+        values.put("repeat_reminder_minutes", medication.repeatReminderMinutes);
         values.put("active", medication.active ? 1 : 0);
         values.put("created_at", medication.createdAt);
         return values;
@@ -920,6 +925,14 @@ public class MedicationStore extends SQLiteOpenHelper {
         return cursor.getFloat(index);
     }
 
+    private int intValue(Cursor cursor, String columnName, int fallback) {
+        int index = cursor.getColumnIndex(columnName);
+        if (index < 0) {
+            return fallback;
+        }
+        return cursor.getInt(index);
+    }
+
     private float clamp(float value, float min, float max, float fallback) {
         if (Float.isNaN(value) || Float.isInfinite(value) || value <= 0 && min > 0) {
             return fallback;
@@ -939,6 +952,7 @@ public class MedicationStore extends SQLiteOpenHelper {
                 Medication.parseDoseMinutes(stringValue(cursor, "dose_minutes", "")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("quantity")),
                 cursor.getInt(cursor.getColumnIndexOrThrow("refill_threshold")),
+                intValue(cursor, "repeat_reminder_minutes", 0),
                 cursor.getInt(cursor.getColumnIndexOrThrow("active")) == 1,
                 cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
         );
