@@ -187,17 +187,22 @@ public class Medication {
     }
 
     public String repeatReminderLabel() {
-        if (repeatReminderMinutes <= 0) {
+        return repeatReminderLabel(repeatReminderMinutes);
+    }
+
+    public static String repeatReminderLabel(int repeatReminderMinutes) {
+        int safeMinutes = clamp(repeatReminderMinutes, 0, MAX_REPEAT_REMINDER_MINUTES);
+        if (safeMinutes <= 0) {
             return "No repeat alerts";
         }
-        if (repeatReminderMinutes == 1) {
+        if (safeMinutes == 1) {
             return "Repeats every minute";
         }
-        if (repeatReminderMinutes % 60 == 0) {
-            int hours = repeatReminderMinutes / 60;
+        if (safeMinutes % 60 == 0) {
+            int hours = safeMinutes / 60;
             return hours == 1 ? "Repeats every hour" : "Repeats every " + hours + " hours";
         }
-        return "Repeats every " + repeatReminderMinutes + " minutes";
+        return "Repeats every " + safeMinutes + " minutes";
     }
 
     public static String serializeDoseMinutes(List<Integer> doseMinutes) {
