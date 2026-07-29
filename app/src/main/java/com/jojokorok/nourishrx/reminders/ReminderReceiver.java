@@ -98,7 +98,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         ReminderScheduler.ensureNotificationChannel(context, profile);
 
         Intent openIntent = new Intent(context, MainActivity.class);
-        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         openIntent.putExtra(ReminderScheduler.EXTRA_PROFILE_ID, medication.profileId);
         PendingIntent contentIntent = PendingIntent.getActivity(
                 context,

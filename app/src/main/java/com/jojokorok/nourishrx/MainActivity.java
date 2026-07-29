@@ -104,9 +104,19 @@ public class MainActivity extends Activity {
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
+        applyReminderProfileIntent(getIntent());
         ReminderScheduler.ensureNotificationChannel(this);
         ReminderScheduler.scheduleAll(this);
         renderShell();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (store != null && applyReminderProfileIntent(intent)) {
+            renderShell();
+        }
     }
 
     @Override
@@ -2545,6 +2555,26 @@ public class MainActivity extends Activity {
                 .edit()
                 .putLong(PREF_SELECTED_PROFILE_ID, currentProfileId)
                 .apply();
+    }
+
+    private boolean applyReminderProfileIntent(Intent intent) {
+        if (intent == null || !intent.hasExtra(ReminderScheduler.EXTRA_PROFILE_ID)) {
+            return false;
+        }
+
+        long profileId = intent.getLongExtra(ReminderScheduler.EXTRA_PROFILE_ID, 0);
+        if (profileId <= 0 || store.getProfile(profileId) == null) {
+            return false;
+        }
+
+        setSelectedProfileId(profileId);
+        currentMode = MODE_MEDICATION;
+        currentTab = defaultTabForMode(currentMode);
+        getPreferences(MODE_PRIVATE)
+                .edit()
+                .putString(PREF_APP_MODE, currentMode)
+                .apply();
+        return true;
     }
 
     private Profile selectedProfile() {
