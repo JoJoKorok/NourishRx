@@ -16,6 +16,7 @@ import java.util.Locale;
 public class Medication {
     public static final int MINUTES_PER_DAY = 24 * 60;
     public static final int MAX_DOSES_PER_DAY = 24;
+    public static final int MAX_REPEAT_REMINDER_MINUTES = 24 * 60;
 
     public long id;
     public long profileId;
@@ -27,6 +28,7 @@ public class Medication {
     public List<Integer> customDoseMinutes;
     public int quantity;
     public int refillThreshold;
+    public int repeatReminderMinutes;
     public boolean active;
     public long createdAt;
 
@@ -54,6 +56,7 @@ public class Medication {
                 null,
                 quantity,
                 refillThreshold,
+                0,
                 active,
                 createdAt
         );
@@ -73,6 +76,38 @@ public class Medication {
             boolean active,
             long createdAt
     ) {
+        this(
+                id,
+                profileId,
+                name,
+                dosage,
+                instructions,
+                firstDoseMinutes,
+                dosesPerDay,
+                doseMinutes,
+                quantity,
+                refillThreshold,
+                0,
+                active,
+                createdAt
+        );
+    }
+
+    public Medication(
+            long id,
+            long profileId,
+            String name,
+            String dosage,
+            String instructions,
+            int firstDoseMinutes,
+            int dosesPerDay,
+            List<Integer> doseMinutes,
+            int quantity,
+            int refillThreshold,
+            int repeatReminderMinutes,
+            boolean active,
+            long createdAt
+    ) {
         this.id = id;
         this.profileId = profileId > 0 ? profileId : 1;
         this.name = clean(name);
@@ -83,6 +118,7 @@ public class Medication {
         this.dosesPerDay = this.customDoseMinutes.size();
         this.quantity = Math.max(0, quantity);
         this.refillThreshold = Math.max(0, refillThreshold);
+        this.repeatReminderMinutes = clamp(repeatReminderMinutes, 0, MAX_REPEAT_REMINDER_MINUTES);
         this.active = active;
         this.createdAt = createdAt > 0 ? createdAt : System.currentTimeMillis();
     }
@@ -148,6 +184,25 @@ public class Medication {
 
     public String doseCountLabel() {
         return dosesPerDay == 1 ? "1 dose/day" : dosesPerDay + " doses/day";
+    }
+
+    public String repeatReminderLabel() {
+        return repeatReminderLabel(repeatReminderMinutes);
+    }
+
+    public static String repeatReminderLabel(int repeatReminderMinutes) {
+        int safeMinutes = clamp(repeatReminderMinutes, 0, MAX_REPEAT_REMINDER_MINUTES);
+        if (safeMinutes <= 0) {
+            return "No repeat alerts";
+        }
+        if (safeMinutes == 1) {
+            return "Repeats every minute";
+        }
+        if (safeMinutes % 60 == 0) {
+            int hours = safeMinutes / 60;
+            return hours == 1 ? "Repeats every hour" : "Repeats every " + hours + " hours";
+        }
+        return "Repeats every " + safeMinutes + " minutes";
     }
 
     public static String serializeDoseMinutes(List<Integer> doseMinutes) {
