@@ -481,6 +481,46 @@ public class MedicationStore extends SQLiteOpenHelper {
         db.delete(TABLE_MEAL_FOOD_LOGS, "id = ?", new String[]{String.valueOf(logId)});
     }
 
+    public NutritionTotals getDailyNutritionTotals(long profileId, long startMillis, long endMillis) {
+        return NutritionTotals.fromLogs(getMealFoodLogs(profileId, startMillis, endMillis));
+    }
+
+    public NutritionTotals getMealNutritionTotals(
+            long profileId,
+            String mealName,
+            long startMillis,
+            long endMillis
+    ) {
+        String cleanMealName = mealName == null ? "" : mealName.trim();
+        if (cleanMealName.isEmpty()) {
+            cleanMealName = "Meal";
+        }
+        NutritionTotals totals = new NutritionTotals();
+        for (MealFoodLog log : getMealFoodLogs(profileId, startMillis, endMillis)) {
+            if (log.mealName.equals(cleanMealName)) {
+                totals.addFood(log.food, log.servings);
+            }
+        }
+        return totals;
+    }
+
+    public Map<String, NutritionTotals> getMealNutritionTotalsByName(
+            long profileId,
+            long startMillis,
+            long endMillis
+    ) {
+        Map<String, NutritionTotals> totalsByMeal = new LinkedHashMap<>();
+        for (MealFoodLog log : getMealFoodLogs(profileId, startMillis, endMillis)) {
+            NutritionTotals totals = totalsByMeal.get(log.mealName);
+            if (totals == null) {
+                totals = new NutritionTotals();
+                totalsByMeal.put(log.mealName, totals);
+            }
+            totals.addFood(log.food, log.servings);
+        }
+        return totalsByMeal;
+    }
+
     public List<String> getMealDefaults(long profileId) {
         SQLiteDatabase db = getReadableDatabase();
         List<String> names = new ArrayList<>();
