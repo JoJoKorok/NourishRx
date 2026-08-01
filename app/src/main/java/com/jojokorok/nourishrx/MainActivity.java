@@ -43,7 +43,10 @@ import com.jojokorok.nourishrx.data.MealFoodLog;
 import com.jojokorok.nourishrx.data.Medication;
 import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.NutritionFood;
+import com.jojokorok.nourishrx.data.NutritionTotals;
 import com.jojokorok.nourishrx.data.Profile;
+import com.jojokorok.nourishrx.data.SavedMeal;
+import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
@@ -344,6 +347,7 @@ public class MainActivity extends Activity {
         if (MODE_NUTRITION.equals(currentMode)) {
             tabs.addView(tabButton("Today", "nutrition_today"));
             tabs.addView(tabButton("Meals", "nutrition_meals"));
+            tabs.addView(tabButton("Saved", "nutrition_saved"));
             tabs.addView(tabButton("Foods", "nutrition_foods"));
             tabs.addView(tabButton("Body", "nutrition_body"));
         } else {
@@ -378,6 +382,8 @@ public class MainActivity extends Activity {
         if (MODE_NUTRITION.equals(currentMode)) {
             if ("nutrition_meals".equals(currentTab)) {
                 renderNutritionMeals();
+            } else if ("nutrition_saved".equals(currentTab)) {
+                renderNutritionSavedMeals();
             } else if ("nutrition_foods".equals(currentTab)) {
                 renderNutritionFoods();
             } else if ("nutrition_body".equals(currentTab)) {
@@ -617,6 +623,36 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void renderNutritionSavedMeals() {
+        List<SavedMeal> savedMeals = store.getSavedMeals(currentProfileId);
+        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
+
+        content.addView(sectionTitle("Saved", savedMeals.isEmpty() ? "No saved meal combinations yet" : plural(savedMeals.size(), "saved meal", "saved meals")));
+
+        Button create = button("+ Saved meal", COLOR_GREEN, COLOR_GREEN_SOFT);
+        create.setOnClickListener(view -> showSavedMealDialog(null));
+        LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        createParams.topMargin = dp(4);
+        content.addView(create, createParams);
+
+        if (foods.isEmpty()) {
+            emptyState("Save food items first, then combine them into reusable meals.", "Add food", view -> showFoodDialog(null));
+            return;
+        }
+
+        if (savedMeals.isEmpty()) {
+            emptyState("Build a reusable meal from foods already saved in the app.", "Create saved meal", view -> showSavedMealDialog(null));
+            return;
+        }
+
+        for (SavedMeal savedMeal : savedMeals) {
+            content.addView(savedMealCard(savedMeal));
+        }
+    }
+
     private void renderNutritionFoods() {
         List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
 
@@ -832,6 +868,42 @@ public class MainActivity extends Activity {
 
         Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
         delete.setOnClickListener(view -> confirmDeleteMealLog(log));
+        actions.addView(delete, weightedActionParams());
+        card.addView(actions);
+        return card;
+    }
+
+    private View savedMealCard(SavedMeal savedMeal) {
+        LinearLayout card = card();
+        List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
+        NutritionTotals totals = new NutritionTotals();
+        for (SavedMealItem item : items) {
+            totals.addFood(item.food, item.servings);
+        }
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.addView(text(savedMeal.name, 19, COLOR_INK, Typeface.BOLD));
+        if (!savedMeal.notes.isEmpty()) {
+            details.addView(text(savedMeal.notes, 13, COLOR_MUTED, Typeface.BOLD));
+        }
+        details.addView(text(savedMealItemsSummary(items), 13, COLOR_MUTED, Typeface.NORMAL));
+        details.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.NORMAL));
+        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        top.addView(statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
+        card.addView(top);
+
+        LinearLayout actions = actionRow();
+        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
+        edit.setOnClickListener(view -> showSavedMealDialog(savedMeal));
+        actions.addView(edit, weightedActionParams());
+
+        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
+        delete.setOnClickListener(view -> confirmDeleteSavedMeal(savedMeal));
         actions.addView(delete, weightedActionParams());
         card.addView(actions);
         return card;
@@ -1529,6 +1601,231 @@ public class MainActivity extends Activity {
         showLogFoodDialog(null, presetName, 0);
     }
 
+    private void showSavedMealDialog(SavedMeal existing) {
+        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
+        if (foods.isEmpty()) {
+            Toast.makeText(this, "Create a food before saving a meal.", Toast.LENGTH_SHORT).show();
+            showFoodDialog(null);
+            return;
+        }
+
+        SavedMeal savedMeal = existing == null
+                ? new SavedMeal(0, currentProfileId, "", "", System.currentTimeMillis())
+                : existing;
+
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(18), dp(8), dp(18), 0);
+
+        EditText nameField = field("Saved meal name", savedMeal.name.equals("Saved meal") && existing == null ? "" : savedMeal.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        EditText notesField = field("Notes", savedMeal.notes, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        form.addView(fieldLabel("Meal"));
+        form.addView(nameField);
+        form.addView(notesField);
+
+        LinearLayout itemsContainer = new LinearLayout(this);
+        itemsContainer.setOrientation(LinearLayout.VERTICAL);
+        ArrayList<SavedMealItemDraft> drafts = savedMealDraftsFromItems(existing == null
+                ? new ArrayList<>()
+                : store.getSavedMealItems(existing.id));
+        if (drafts.isEmpty()) {
+            drafts.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
+        }
+        renderSavedMealItemRows(itemsContainer, foods, drafts);
+
+        form.addView(fieldLabel("Foods"));
+        form.addView(itemsContainer);
+
+        Button addFood = button("+ Food item", COLOR_GREEN, COLOR_GREEN_SOFT);
+        addFood.setOnClickListener(view -> {
+            ArrayList<SavedMealItemDraft> updated = savedMealDraftsFromRows(itemsContainer, foods);
+            updated.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
+            renderSavedMealItemRows(itemsContainer, foods, updated);
+        });
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        addParams.topMargin = dp(10);
+        form.addView(addFood, addParams);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(form);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(existing == null ? "Create saved meal" : "Edit saved meal")
+                .setView(scrollView)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", null)
+                .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            save.setOnClickListener(view -> {
+                String name = nameField.getText().toString().trim();
+                if (name.isEmpty()) {
+                    nameField.setError("Required");
+                    return;
+                }
+
+                ArrayList<SavedMealItem> items = savedMealItemsFromRows(itemsContainer, foods);
+                if (items == null) {
+                    return;
+                }
+                if (items.isEmpty()) {
+                    Toast.makeText(this, "Add at least one food.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                store.saveSavedMeal(new SavedMeal(
+                        savedMeal.id,
+                        currentProfileId,
+                        name,
+                        notesField.getText().toString(),
+                        savedMeal.createdAt
+                ), items);
+                dialog.dismiss();
+                renderShell();
+            });
+        });
+
+        dialog.show();
+    }
+
+    private void renderSavedMealItemRows(
+            LinearLayout container,
+            List<NutritionFood> foods,
+            ArrayList<SavedMealItemDraft> drafts
+    ) {
+        container.removeAllViews();
+        if (drafts.isEmpty()) {
+            drafts.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
+        }
+
+        ArrayList<String> foodNames = new ArrayList<>();
+        for (NutritionFood food : foods) {
+            foodNames.add(food.displayName());
+        }
+
+        for (int i = 0; i < drafts.size(); i++) {
+            int index = i;
+            SavedMealItemDraft draft = drafts.get(i);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(12), dp(12));
+            row.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            rowParams.topMargin = dp(8);
+            row.setLayoutParams(rowParams);
+
+            Spinner foodSpinner = new Spinner(this);
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, foodNames);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            foodSpinner.setAdapter(adapter);
+            foodSpinner.setSelection(savedMealFoodIndex(foods, draft.foodId));
+            foodSpinner.setPadding(dp(10), 0, dp(10), 0);
+            foodSpinner.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
+            LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(48)
+            );
+            row.addView(foodSpinner, spinnerParams);
+
+            EditText servingsField = field("Servings used", draft.servings > 0.0f ? formatFloatInput(draft.servings) : "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            row.addView(servingsField);
+
+            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
+            remove.setEnabled(drafts.size() > 1);
+            remove.setAlpha(drafts.size() > 1 ? 1.0f : 0.45f);
+            remove.setOnClickListener(view -> {
+                ArrayList<SavedMealItemDraft> updated = savedMealDraftsFromRows(container, foods);
+                if (updated.size() <= 1) {
+                    Toast.makeText(this, "Keep at least one food.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                updated.remove(index);
+                renderSavedMealItemRows(container, foods, updated);
+            });
+            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(42)
+            );
+            removeParams.topMargin = dp(8);
+            row.addView(remove, removeParams);
+
+            row.setTag(new SavedMealItemRowControls(foodSpinner, servingsField));
+            container.addView(row);
+        }
+    }
+
+    private ArrayList<SavedMealItemDraft> savedMealDraftsFromItems(List<SavedMealItem> items) {
+        ArrayList<SavedMealItemDraft> drafts = new ArrayList<>();
+        for (SavedMealItem item : items) {
+            long foodId = item.foodId > 0 ? item.foodId : item.food == null ? 0 : item.food.id;
+            if (foodId > 0) {
+                drafts.add(new SavedMealItemDraft(foodId, item.servings));
+            }
+        }
+        return drafts;
+    }
+
+    private ArrayList<SavedMealItemDraft> savedMealDraftsFromRows(LinearLayout container, List<NutritionFood> foods) {
+        ArrayList<SavedMealItemDraft> drafts = new ArrayList<>();
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View child = container.getChildAt(i);
+            if (!(child.getTag() instanceof SavedMealItemRowControls)) {
+                continue;
+            }
+            SavedMealItemRowControls controls = (SavedMealItemRowControls) child.getTag();
+            int selectedIndex = controls.foodSpinner.getSelectedItemPosition();
+            if (selectedIndex < 0 || selectedIndex >= foods.size()) {
+                continue;
+            }
+            drafts.add(new SavedMealItemDraft(
+                    foods.get(selectedIndex).id,
+                    parseFloat(controls.servingsField, 0.0f)
+            ));
+        }
+        return drafts;
+    }
+
+    private ArrayList<SavedMealItem> savedMealItemsFromRows(LinearLayout container, List<NutritionFood> foods) {
+        ArrayList<SavedMealItem> items = new ArrayList<>();
+        for (int i = 0; i < container.getChildCount(); i++) {
+            View child = container.getChildAt(i);
+            if (!(child.getTag() instanceof SavedMealItemRowControls)) {
+                continue;
+            }
+            SavedMealItemRowControls controls = (SavedMealItemRowControls) child.getTag();
+            int selectedIndex = controls.foodSpinner.getSelectedItemPosition();
+            if (selectedIndex < 0 || selectedIndex >= foods.size()) {
+                continue;
+            }
+            float servings = parseFloat(controls.servingsField, 0.0f);
+            if (servings <= 0.0f) {
+                controls.servingsField.setError("Enter servings");
+                return null;
+            }
+
+            NutritionFood food = foods.get(selectedIndex);
+            items.add(new SavedMealItem(0, 0, food.id, servings, items.size(), food));
+        }
+        return items;
+    }
+
+    private int savedMealFoodIndex(List<NutritionFood> foods, long foodId) {
+        for (int i = 0; i < foods.size(); i++) {
+            if (foods.get(i).id == foodId) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
     private void showLogFoodDialog(String presetName, long selectedFoodId) {
         showLogFoodDialog(null, presetName, selectedFoodId);
     }
@@ -2169,6 +2466,18 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private void confirmDeleteSavedMeal(SavedMeal savedMeal) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete " + savedMeal.name + "?")
+                .setMessage("This removes the saved meal combination.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    store.deleteSavedMeal(savedMeal.id);
+                    renderShell();
+                })
+                .show();
+    }
+
     private void confirmDeleteFood(NutritionFood food) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete " + food.displayName() + "?")
@@ -2673,6 +2982,37 @@ public class MainActivity extends Activity {
 
     private String formatPounds(float pounds) {
         return formatFloatInput(pounds);
+    }
+
+    private String nutritionTotalsLine(NutritionTotals totals) {
+        return totals.calories + " cal - " +
+                formatGrams(totals.proteinGrams) + " protein - " +
+                formatGrams(totals.totalCarbsGrams) + " carbs - " +
+                formatGrams(totals.totalFatGrams) + " fat";
+    }
+
+    private String savedMealItemsSummary(List<SavedMealItem> items) {
+        if (items.isEmpty()) {
+            return "No foods added";
+        }
+
+        StringBuilder summary = new StringBuilder();
+        int visibleCount = Math.min(2, items.size());
+        for (int i = 0; i < visibleCount; i++) {
+            SavedMealItem item = items.get(i);
+            if (i > 0) {
+                summary.append(", ");
+            }
+            summary.append(item.food == null ? "Food" : item.food.displayName());
+            summary.append(" x");
+            summary.append(formatServings(item.servings));
+        }
+        if (items.size() > visibleCount) {
+            summary.append(" + ");
+            summary.append(items.size() - visibleCount);
+            summary.append(" more");
+        }
+        return summary.toString();
     }
 
     private String formatFloatInput(float value) {
@@ -3296,6 +3636,26 @@ public class MainActivity extends Activity {
             if (onFrameChanged != null) {
                 onFrameChanged.run();
             }
+        }
+    }
+
+    private static final class SavedMealItemDraft {
+        final long foodId;
+        final float servings;
+
+        SavedMealItemDraft(long foodId, float servings) {
+            this.foodId = foodId;
+            this.servings = servings;
+        }
+    }
+
+    private static final class SavedMealItemRowControls {
+        final Spinner foodSpinner;
+        final EditText servingsField;
+
+        SavedMealItemRowControls(Spinner foodSpinner, EditText servingsField) {
+            this.foodSpinner = foodSpinner;
+            this.servingsField = servingsField;
         }
     }
 
