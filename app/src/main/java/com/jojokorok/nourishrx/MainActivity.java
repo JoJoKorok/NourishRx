@@ -618,8 +618,12 @@ public class MainActivity extends Activity {
             return;
         }
 
-        for (MealFoodLog log : logs) {
-            content.addView(mealLogCard(log));
+        for (String mealName : mealNamesForLogs(logs)) {
+            List<MealFoodLog> mealLogs = logsForMeal(logs, mealName);
+            content.addView(mealTotalsCard(mealName, mealLogs));
+            for (MealFoodLog log : mealLogs) {
+                content.addView(mealLogCard(log));
+            }
         }
     }
 
@@ -714,6 +718,50 @@ public class MainActivity extends Activity {
         addParams.topMargin = dp(12);
         card.addView(addMeal, addParams);
         return card;
+    }
+
+    private View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
+        NutritionTotals totals = totalsFromMealLogs(logs);
+
+        LinearLayout card = card();
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.addView(text(mealName, 20, COLOR_INK, Typeface.BOLD));
+        details.addView(text(plural(logs.size(), "food entry", "food entries") + " in this meal", 13, COLOR_MUTED, Typeface.BOLD));
+        details.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.NORMAL));
+        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        top.addView(statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
+        card.addView(top);
+
+        LinearLayout macros = new LinearLayout(this);
+        macros.setOrientation(LinearLayout.HORIZONTAL);
+        macros.setPadding(0, dp(12), 0, 0);
+        macros.addView(summaryPill(formatGrams(totals.proteinGrams) + " protein", COLOR_GREEN, COLOR_GREEN_SOFT));
+        macros.addView(summaryPill(formatGrams(totals.totalCarbsGrams) + " carbs", COLOR_BLUE, COLOR_BLUE_SOFT));
+        macros.addView(summaryPill(formatGrams(totals.totalFatGrams) + " fat", COLOR_GOLD, COLOR_GOLD_SOFT));
+        card.addView(macros);
+
+        Button logHere = button("+ Log here", COLOR_GREEN, COLOR_GREEN_SOFT);
+        logHere.setOnClickListener(view -> showLogFoodDialog(mealName));
+        LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        logParams.topMargin = dp(12);
+        card.addView(logHere, logParams);
+        return card;
+    }
+
+    private NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
+        NutritionTotals totals = new NutritionTotals();
+        for (MealFoodLog log : logs) {
+            totals.addFood(log.food, log.servings);
+        }
+        return totals;
     }
 
     private View defaultMealsCard(List<String> mealDefaults) {
@@ -3117,6 +3165,33 @@ public class MainActivity extends Activity {
             summary.append(" more");
         }
         return summary.toString();
+    }
+
+    private ArrayList<String> mealNamesForLogs(List<MealFoodLog> logs) {
+        ArrayList<String> names = new ArrayList<>();
+        for (MealFoodLog log : logs) {
+            String name = log.mealName == null || log.mealName.trim().isEmpty()
+                    ? "Meal"
+                    : log.mealName.trim();
+            if (!names.contains(name)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    private ArrayList<MealFoodLog> logsForMeal(List<MealFoodLog> logs, String mealName) {
+        ArrayList<MealFoodLog> matchingLogs = new ArrayList<>();
+        String targetName = mealName == null || mealName.trim().isEmpty() ? "Meal" : mealName.trim();
+        for (MealFoodLog log : logs) {
+            String logMealName = log.mealName == null || log.mealName.trim().isEmpty()
+                    ? "Meal"
+                    : log.mealName.trim();
+            if (targetName.equals(logMealName)) {
+                matchingLogs.add(log);
+            }
+        }
+        return matchingLogs;
     }
 
     private String formatFloatInput(float value) {
