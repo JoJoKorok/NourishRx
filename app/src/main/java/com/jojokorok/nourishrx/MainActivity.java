@@ -703,7 +703,7 @@ public class MainActivity extends Activity {
         searchFood.setOnClickListener(view -> showOpenFoodFactsSearchDialog());
         actions.addView(searchFood, weightedActionParams());
 
-        Button scanBarcode = button("Scan barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
+        Button scanBarcode = button("Barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
         scanBarcode.setOnClickListener(view -> showBarcodeScannerEntryPoint());
         actions.addView(scanBarcode, weightedActionParams());
         content.addView(actions);
@@ -719,15 +719,73 @@ public class MainActivity extends Activity {
     }
 
     private void showBarcodeScannerEntryPoint() {
-        if (!requirePremium(PremiumFeature.BARCODE_SCANNING)) {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(18), dp(8), dp(18), 0);
+
+        EditText barcodeField = field("Barcode number", "", InputType.TYPE_CLASS_NUMBER);
+        body.addView(barcodeField);
+
+        TextView status = text("Enter a UPC or EAN barcode.", 13, COLOR_MUTED, Typeface.BOLD);
+        status.setPadding(0, dp(10), 0, 0);
+        body.addView(status);
+
+        Button lookup = button("Lookup barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
+        LinearLayout.LayoutParams lookupParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        lookupParams.topMargin = dp(12);
+        body.addView(lookup, lookupParams);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(body);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Barcode lookup")
+                .setView(scrollView)
+                .setNegativeButton("Close", null)
+                .create();
+
+        lookup.setOnClickListener(view -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
+        dialog.setOnShowListener(dialogInterface -> barcodeField.requestFocus());
+        dialog.show();
+    }
+
+    private void startBarcodeLookup(
+            AlertDialog dialog,
+            LinearLayout body,
+            EditText barcodeField,
+            Button lookup,
+            TextView status
+    ) {
+        String code = barcodeField.getText().toString().replaceAll("[^0-9]", "");
+        if (code.length() < 6) {
+            barcodeField.setError("Enter a barcode");
             return;
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle("Scan barcode")
-                .setMessage("Camera barcode scanning will open here after the scanner dependency and camera permission flow are added.")
-                .setPositiveButton("OK", null)
-                .show();
+        barcodeField.setText(code);
+        lookup.setEnabled(false);
+        status.setText("Looking up barcode...");
+
+        new Thread(() -> {
+            try {
+                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(code, currentProfileId);
+                runOnUiThread(() -> renderOpenFoodFactsInspection(
+                        dialog,
+                        body,
+                        food,
+                        "OpenFoodFacts barcode " + code
+                ));
+            } catch (Exception exception) {
+                runOnUiThread(() -> {
+                    lookup.setEnabled(true);
+                    status.setText("Barcode lookup failed. Check the code and try again.");
+                    Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
     }
 
     private void renderNutritionBody() {
@@ -2518,9 +2576,18 @@ public class MainActivity extends Activity {
             NutritionFood food,
             OpenFoodFactsClient.SearchResult result
     ) {
+        renderOpenFoodFactsInspection(dialog, body, food, "OpenFoodFacts barcode " + result.code);
+    }
+
+    private void renderOpenFoodFactsInspection(
+            AlertDialog dialog,
+            LinearLayout body,
+            NutritionFood food,
+            String sourceLine
+    ) {
         body.removeAllViews();
         body.addView(text(food.displayName(), 21, COLOR_INK, Typeface.BOLD));
-        body.addView(text("OpenFoodFacts barcode " + result.code, 12, COLOR_MUTED, Typeface.NORMAL));
+        body.addView(text(sourceLine, 12, COLOR_MUTED, Typeface.NORMAL));
         body.addView(fieldLabel("Serving"));
         body.addView(nutritionFactRow("Serving size", food.servingSize.isEmpty() ? "Not listed" : food.servingSize));
         body.addView(nutritionFactRow("Servings per container", food.servingsPerContainer > 0.0f ? formatServings(food.servingsPerContainer) : "Not listed"));
