@@ -567,20 +567,11 @@ public class MainActivity extends Activity {
         List<MealFoodLog> logs = store.getMealFoodLogs(currentProfileId, start, end);
         List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 5);
         int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-
-        int calories = 0;
-        float protein = 0.0f;
-        float carbs = 0.0f;
-        float fat = 0.0f;
-        for (MealFoodLog log : logs) {
-            calories += log.calories();
-            protein += log.proteinGrams();
-            carbs += log.totalCarbsGrams();
-            fat += log.totalFatGrams();
-        }
+        NutritionTotals totals = totalsFromMealLogs(logs);
 
         content.addView(sectionTitle("Nutrition", selectedProfileName() + " has " + logs.size() + " foods logged today"));
-        content.addView(nutritionSummaryCard(calories, protein, carbs, fat));
+        content.addView(nutritionSummaryCard(totals.calories, totals.proteinGrams, totals.totalCarbsGrams, totals.totalFatGrams));
+        content.addView(dailyNutritionFactsCard(totals));
         content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
         content.addView(waterCard(waterOunces, start, end));
         content.addView(weightCard(weights));
@@ -717,6 +708,40 @@ public class MainActivity extends Activity {
         );
         addParams.topMargin = dp(12);
         card.addView(addMeal, addParams);
+        return card;
+    }
+
+    private View dailyNutritionFactsCard(NutritionTotals totals) {
+        LinearLayout card = card();
+        card.addView(text("Full-day nutrition", 13, COLOR_MUTED, Typeface.BOLD));
+        card.addView(text(totals.calories + " calories total", 24, COLOR_INK, Typeface.BOLD));
+        card.addView(text("Combined from all foods logged today", 13, COLOR_MUTED, Typeface.NORMAL));
+
+        LinearLayout macros = new LinearLayout(this);
+        macros.setOrientation(LinearLayout.HORIZONTAL);
+        macros.setPadding(0, dp(12), 0, 0);
+        macros.addView(summaryPill(formatGrams(totals.proteinGrams) + " protein", COLOR_GREEN, COLOR_GREEN_SOFT));
+        macros.addView(summaryPill(formatGrams(totals.totalCarbsGrams) + " carbs", COLOR_BLUE, COLOR_BLUE_SOFT));
+        macros.addView(summaryPill(formatGrams(totals.totalFatGrams) + " fat", COLOR_GOLD, COLOR_GOLD_SOFT));
+        card.addView(macros);
+
+        card.addView(fieldLabel("Nutrition facts"));
+        card.addView(nutritionFactRow("Total fat", formatGrams(totals.totalFatGrams)));
+        card.addView(nutritionFactRow("Saturated fat", formatGrams(totals.saturatedFatGrams)));
+        card.addView(nutritionFactRow("Trans fat", formatGrams(totals.transFatGrams)));
+        card.addView(nutritionFactRow("Cholesterol", formatMg(totals.cholesterolMg)));
+        card.addView(nutritionFactRow("Sodium", formatMg(totals.sodiumMg)));
+        card.addView(nutritionFactRow("Total carbs", formatGrams(totals.totalCarbsGrams)));
+        card.addView(nutritionFactRow("Fiber", formatGrams(totals.fiberGrams)));
+        card.addView(nutritionFactRow("Total sugars", formatGrams(totals.totalSugarsGrams)));
+        card.addView(nutritionFactRow("Added sugars", formatGrams(totals.addedSugarsGrams)));
+        card.addView(nutritionFactRow("Protein", formatGrams(totals.proteinGrams)));
+
+        card.addView(fieldLabel("Vitamins and minerals"));
+        card.addView(nutritionFactRow("Vitamin D", formatMcg(totals.vitaminDMcg)));
+        card.addView(nutritionFactRow("Calcium", formatMg(totals.calciumMg)));
+        card.addView(nutritionFactRow("Iron", formatMg(totals.ironMg)));
+        card.addView(nutritionFactRow("Potassium", formatMg(totals.potassiumMg)));
         return card;
     }
 
