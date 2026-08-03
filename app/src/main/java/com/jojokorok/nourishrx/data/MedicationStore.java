@@ -16,7 +16,7 @@ public class MedicationStore extends SQLiteOpenHelper {
     public static final String STATUS_SKIPPED = "skipped";
 
     private static final String DATABASE_NAME = "medication_manager.db";
-    private static final int DATABASE_VERSION = 9;
+    private static final int DATABASE_VERSION = 10;
 
     private static final String TABLE_PROFILES = "profiles";
     private static final String TABLE_MEDICATIONS = "medications";
@@ -27,6 +27,8 @@ public class MedicationStore extends SQLiteOpenHelper {
     private static final String TABLE_WATER_ENTRIES = "water_entries";
     private static final String TABLE_WEIGHT_ENTRIES = "weight_entries";
     private static final String TABLE_MEAL_DEFAULTS = "meal_defaults";
+    private static final String TABLE_SAVED_MEALS = "saved_meals";
+    private static final String TABLE_SAVED_MEAL_ITEMS = "saved_meal_items";
 
     public MedicationStore(Context context) {
         super(context.getApplicationContext(), DATABASE_NAME, null, DATABASE_VERSION);
@@ -69,6 +71,7 @@ public class MedicationStore extends SQLiteOpenHelper {
                 TABLE_DOSE_LOGS + "(scheduled_at)");
 
         createNutritionTables(db);
+        createSavedMealTables(db);
     }
 
     @Override
@@ -105,6 +108,9 @@ public class MedicationStore extends SQLiteOpenHelper {
         }
         if (oldVersion < 9) {
             addMedicationColumnIfMissing(db, "repeat_reminder_minutes", "INTEGER NOT NULL DEFAULT 0");
+        }
+        if (oldVersion < 10) {
+            createSavedMealTables(db);
         }
     }
 
@@ -226,9 +232,15 @@ public class MedicationStore extends SQLiteOpenHelper {
                     "medication_id IN (SELECT id FROM " + TABLE_MEDICATIONS + " WHERE profile_id = ?)",
                     args
             );
+            db.delete(
+                    TABLE_SAVED_MEAL_ITEMS,
+                    "saved_meal_id IN (SELECT id FROM " + TABLE_SAVED_MEALS + " WHERE profile_id = ?)",
+                    args
+            );
             db.delete(TABLE_MEDICATIONS, "profile_id = ?", args);
             db.delete(TABLE_NUTRITION_MEALS, "profile_id = ?", args);
             db.delete(TABLE_MEAL_FOOD_LOGS, "profile_id = ?", args);
+            db.delete(TABLE_SAVED_MEALS, "profile_id = ?", args);
             db.delete(TABLE_NUTRITION_FOODS, "profile_id = ?", args);
             db.delete(TABLE_WATER_ENTRIES, "profile_id = ?", args);
             db.delete(TABLE_WEIGHT_ENTRIES, "profile_id = ?", args);
@@ -425,6 +437,7 @@ public class MedicationStore extends SQLiteOpenHelper {
         try {
             String[] args = new String[]{String.valueOf(foodId)};
             db.delete(TABLE_MEAL_FOOD_LOGS, "food_id = ?", args);
+            db.delete(TABLE_SAVED_MEAL_ITEMS, "food_id = ?", args);
             db.delete(TABLE_NUTRITION_FOODS, "id = ?", args);
             db.setTransactionSuccessful();
         } finally {
@@ -479,6 +492,172 @@ public class MedicationStore extends SQLiteOpenHelper {
     public void deleteMealFoodLog(long logId) {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_MEAL_FOOD_LOGS, "id = ?", new String[]{String.valueOf(logId)});
+    }
+
+    public NutritionTotals getDailyNutritionTotals(long profileId, long startMillis, long endMillis) {
+        return NutritionTotals.fromLogs(getMealFoodLogs(profileId, startMillis, endMillis));
+    }
+
+    public NutritionTotals getMealNutritionTotals(
+            long profileId,
+            String mealName,
+            long startMillis,
+            long endMillis
+    ) {
+        String cleanMealName = mealName == null ? "" : mealName.trim();
+        if (cleanMealName.isEmpty()) {
+            cleanMealName = "Meal";
+        }
+        NutritionTotals totals = new NutritionTotals();
+        for (MealFoodLog log : getMealFoodLogs(profileId, startMillis, endMillis)) {
+            if (log.mealName.equals(cleanMealName)) {
+                totals.addFood(log.food, log.servings);
+            }
+        }
+        return totals;
+    }
+
+    public Map<String, NutritionTotals> getMealNutritionTotalsByName(
+            long profileId,
+            long startMillis,
+            long endMillis
+    ) {
+        Map<String, NutritionTotals> totalsByMeal = new LinkedHashMap<>();
+        for (MealFoodLog log : getMealFoodLogs(profileId, startMillis, endMillis)) {
+            NutritionTotals totals = totalsByMeal.get(log.mealName);
+            if (totals == null) {
+                totals = new NutritionTotals();
+                totalsByMeal.put(log.mealName, totals);
+            }
+            totals.addFood(log.food, log.servings);
+        }
+        return totalsByMeal;
+    }
+
+    public List<SavedMeal> getSavedMeals(long profileId) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<SavedMeal> savedMeals = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_SAVED_MEALS,
+                null,
+                "profile_id = ?",
+                new String[]{String.valueOf(profileId)},
+                null,
+                null,
+                "name COLLATE NOCASE ASC, id ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                savedMeals.add(savedMealFrom(cursor));
+            }
+        }
+        return savedMeals;
+    }
+
+    public SavedMeal getSavedMeal(long savedMealId) {
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.query(
+                TABLE_SAVED_MEALS,
+                null,
+                "id = ?",
+                new String[]{String.valueOf(savedMealId)},
+                null,
+                null,
+                null
+        )) {
+            if (cursor.moveToFirst()) {
+                return savedMealFrom(cursor);
+            }
+        }
+        return null;
+    }
+
+    public List<SavedMealItem> getSavedMealItems(long savedMealId) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<SavedMealItem> items = new ArrayList<>();
+        try (Cursor cursor = db.query(
+                TABLE_SAVED_MEAL_ITEMS,
+                null,
+                "saved_meal_id = ?",
+                new String[]{String.valueOf(savedMealId)},
+                null,
+                null,
+                "sort_order ASC, id ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                long foodId = cursor.getLong(cursor.getColumnIndexOrThrow("food_id"));
+                NutritionFood food = getNutritionFood(foodId);
+                if (food != null) {
+                    items.add(savedMealItemFrom(cursor, food));
+                }
+            }
+        }
+        return items;
+    }
+
+    public long saveSavedMeal(SavedMeal savedMeal) {
+        return saveSavedMeal(savedMeal, null);
+    }
+
+    public long saveSavedMeal(SavedMeal savedMeal, List<SavedMealItem> items) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            ContentValues values = savedMealValues(savedMeal);
+            long savedMealId = savedMeal.id;
+            if (savedMealId > 0) {
+                db.update(TABLE_SAVED_MEALS, values, "id = ?", new String[]{String.valueOf(savedMealId)});
+            } else {
+                savedMealId = db.insert(TABLE_SAVED_MEALS, null, values);
+                savedMeal.id = savedMealId;
+            }
+
+            if (items != null) {
+                db.delete(
+                        TABLE_SAVED_MEAL_ITEMS,
+                        "saved_meal_id = ?",
+                        new String[]{String.valueOf(savedMealId)}
+                );
+                int sortOrder = 0;
+                for (SavedMealItem item : items) {
+                    long foodId = savedMealItemFoodId(item);
+                    if (foodId <= 0) {
+                        continue;
+                    }
+                    db.insert(
+                            TABLE_SAVED_MEAL_ITEMS,
+                            null,
+                            savedMealItemValues(item, savedMealId, foodId, sortOrder)
+                    );
+                    sortOrder++;
+                }
+            }
+
+            db.setTransactionSuccessful();
+            return savedMealId;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public void deleteSavedMeal(long savedMealId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String[] args = new String[]{String.valueOf(savedMealId)};
+            db.delete(TABLE_SAVED_MEAL_ITEMS, "saved_meal_id = ?", args);
+            db.delete(TABLE_SAVED_MEALS, "id = ?", args);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public NutritionTotals getSavedMealTotals(long savedMealId) {
+        NutritionTotals totals = new NutritionTotals();
+        for (SavedMealItem item : getSavedMealItems(savedMealId)) {
+            totals.addFood(item.food, item.servings);
+        }
+        return totals;
     }
 
     public List<String> getMealDefaults(long profileId) {
@@ -742,6 +921,39 @@ public class MedicationStore extends SQLiteOpenHelper {
         return values;
     }
 
+    private ContentValues savedMealValues(SavedMeal savedMeal) {
+        ContentValues values = new ContentValues();
+        values.put("profile_id", savedMeal.profileId > 0 ? savedMeal.profileId : ensureDefaultProfile());
+        values.put("name", savedMeal.name);
+        values.put("notes", savedMeal.notes);
+        values.put("created_at", savedMeal.createdAt);
+        return values;
+    }
+
+    private ContentValues savedMealItemValues(
+            SavedMealItem item,
+            long savedMealId,
+            long foodId,
+            int sortOrder
+    ) {
+        ContentValues values = new ContentValues();
+        values.put("saved_meal_id", savedMealId);
+        values.put("food_id", foodId);
+        values.put("servings", clamp(item.servings, 0.01f, 999.0f, 1.0f));
+        values.put("sort_order", Math.max(0, sortOrder));
+        return values;
+    }
+
+    private long savedMealItemFoodId(SavedMealItem item) {
+        if (item == null) {
+            return 0;
+        }
+        if (item.foodId > 0) {
+            return item.foodId;
+        }
+        return item.food == null ? 0 : item.food.id;
+    }
+
     private void createProfilesTable(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PROFILES + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -842,6 +1054,33 @@ public class MedicationStore extends SQLiteOpenHelper {
                 ")");
         db.execSQL("CREATE INDEX IF NOT EXISTS meal_defaults_profile_order ON " +
                 TABLE_MEAL_DEFAULTS + "(profile_id, sort_order)");
+    }
+
+    private void createSavedMealTables(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_SAVED_MEALS + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "profile_id INTEGER NOT NULL, " +
+                "name TEXT NOT NULL, " +
+                "notes TEXT NOT NULL DEFAULT '', " +
+                "created_at INTEGER NOT NULL, " +
+                "FOREIGN KEY(profile_id) REFERENCES " + TABLE_PROFILES + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS saved_meals_profile_name ON " +
+                TABLE_SAVED_MEALS + "(profile_id, name COLLATE NOCASE)");
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_SAVED_MEAL_ITEMS + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "saved_meal_id INTEGER NOT NULL, " +
+                "food_id INTEGER NOT NULL, " +
+                "servings REAL NOT NULL DEFAULT 1.0, " +
+                "sort_order INTEGER NOT NULL DEFAULT 0, " +
+                "FOREIGN KEY(saved_meal_id) REFERENCES " + TABLE_SAVED_MEALS + "(id) ON DELETE CASCADE, " +
+                "FOREIGN KEY(food_id) REFERENCES " + TABLE_NUTRITION_FOODS + "(id) ON DELETE CASCADE" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS saved_meal_items_meal_order ON " +
+                TABLE_SAVED_MEAL_ITEMS + "(saved_meal_id, sort_order)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS saved_meal_items_food ON " +
+                TABLE_SAVED_MEAL_ITEMS + "(food_id)");
     }
 
     private long ensureDefaultProfile(SQLiteDatabase db) {
@@ -1006,6 +1245,27 @@ public class MedicationStore extends SQLiteOpenHelper {
                 cursor.getString(cursor.getColumnIndexOrThrow("meal_name")),
                 cursor.getFloat(cursor.getColumnIndexOrThrow("servings")),
                 cursor.getLong(cursor.getColumnIndexOrThrow("eaten_at")),
+                food
+        );
+    }
+
+    private SavedMeal savedMealFrom(Cursor cursor) {
+        return new SavedMeal(
+                cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("profile_id")),
+                cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                stringValue(cursor, "notes", ""),
+                cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
+        );
+    }
+
+    private SavedMealItem savedMealItemFrom(Cursor cursor, NutritionFood food) {
+        return new SavedMealItem(
+                cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("saved_meal_id")),
+                cursor.getLong(cursor.getColumnIndexOrThrow("food_id")),
+                cursor.getFloat(cursor.getColumnIndexOrThrow("servings")),
+                intValue(cursor, "sort_order", 0),
                 food
         );
     }
