@@ -69,6 +69,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
     private static final int REQUEST_PROFILE_PHOTO = 43;
     private static final int REQUEST_BARCODE_CAMERA = 44;
+    private static final int REQUEST_BARCODE_SCAN = 45;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
     private static final String PREF_APP_MODE = "app_mode";
     private static final String MODE_MEDICATION = "medication";
@@ -152,7 +153,7 @@ public class MainActivity extends Activity {
         } else if (requestCode == REQUEST_BARCODE_CAMERA) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Camera access enabled for barcode scanning.", Toast.LENGTH_SHORT).show();
-                showBarcodeCameraReadyDialog();
+                launchBarcodeScanner();
             } else {
                 Toast.makeText(this, "Camera access is off. Manual barcode lookup still works.", Toast.LENGTH_LONG).show();
             }
@@ -162,6 +163,16 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_BARCODE_SCAN) {
+            if (resultCode == RESULT_OK && data != null) {
+                String barcode = data.getStringExtra(BarcodeScannerActivity.EXTRA_BARCODE);
+                if (!TextUtils.isEmpty(barcode)) {
+                    showBarcodeLookupDialog(barcode.trim(), true);
+                }
+            }
+            return;
+        }
+
         if (requestCode != REQUEST_PROFILE_PHOTO) {
             return;
         }
@@ -727,11 +738,15 @@ public class MainActivity extends Activity {
     }
 
     private void showBarcodeScannerEntryPoint() {
+        showBarcodeLookupDialog("", false);
+    }
+
+    private void showBarcodeLookupDialog(String initialBarcode, boolean autoLookup) {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(18), dp(8), dp(18), 0);
 
-        EditText barcodeField = field("Barcode number", "", InputType.TYPE_CLASS_NUMBER);
+        EditText barcodeField = field("Barcode number", initialBarcode, InputType.TYPE_CLASS_NUMBER);
         body.addView(barcodeField);
 
         TextView status = text("Enter a UPC or EAN barcode.", 13, COLOR_MUTED, Typeface.BOLD);
@@ -767,13 +782,19 @@ public class MainActivity extends Activity {
                 .create();
 
         lookup.setOnClickListener(view -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
-        dialog.setOnShowListener(dialogInterface -> barcodeField.requestFocus());
+        dialog.setOnShowListener(dialogInterface -> {
+            if (autoLookup) {
+                lookup.post(() -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
+            } else {
+                barcodeField.requestFocus();
+            }
+        });
         dialog.show();
     }
 
     private void requestBarcodeCameraAccess() {
         if (hasBarcodeCameraPermission()) {
-            showBarcodeCameraReadyDialog();
+            launchBarcodeScanner();
             return;
         }
 
@@ -787,12 +808,12 @@ public class MainActivity extends Activity {
                 checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void showBarcodeCameraReadyDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Camera scanner")
-                .setMessage("Camera access is ready. The next scanner commit will connect the live barcode reader. Manual barcode lookup is available now.")
-                .setPositiveButton("OK", null)
-                .show();
+    private void launchBarcodeScanner() {
+        try {
+            startActivityForResult(new Intent(this, BarcodeScannerActivity.class), REQUEST_BARCODE_SCAN);
+        } catch (Exception exception) {
+            Toast.makeText(this, "Camera scanner could not open.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void startBarcodeLookup(
