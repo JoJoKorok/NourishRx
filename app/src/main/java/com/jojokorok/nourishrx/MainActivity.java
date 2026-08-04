@@ -68,6 +68,7 @@ import java.io.InputStream;
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
     private static final int REQUEST_PROFILE_PHOTO = 43;
+    private static final int REQUEST_BARCODE_CAMERA = 44;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
     private static final String PREF_APP_MODE = "app_mode";
     private static final String MODE_MEDICATION = "medication";
@@ -148,6 +149,13 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "Notifications are off. Schedules still stay saved.", Toast.LENGTH_LONG).show();
             }
             renderShell();
+        } else if (requestCode == REQUEST_BARCODE_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera access enabled for barcode scanning.", Toast.LENGTH_SHORT).show();
+                showBarcodeCameraReadyDialog();
+            } else {
+                Toast.makeText(this, "Camera access is off. Manual barcode lookup still works.", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -730,6 +738,17 @@ public class MainActivity extends Activity {
         status.setPadding(0, dp(10), 0, 0);
         body.addView(status);
 
+        Button camera = button("Use camera scanner", COLOR_BLUE, COLOR_BLUE_SOFT);
+        camera.setOnClickListener(view -> requestBarcodeCameraAccess());
+        LinearLayout.LayoutParams cameraParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        cameraParams.topMargin = dp(12);
+        body.addView(camera, cameraParams);
+
+        body.addView(fieldLabel("Manual lookup"));
+
         Button lookup = button("Lookup barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
         LinearLayout.LayoutParams lookupParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -750,6 +769,30 @@ public class MainActivity extends Activity {
         lookup.setOnClickListener(view -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
         dialog.setOnShowListener(dialogInterface -> barcodeField.requestFocus());
         dialog.show();
+    }
+
+    private void requestBarcodeCameraAccess() {
+        if (hasBarcodeCameraPermission()) {
+            showBarcodeCameraReadyDialog();
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_BARCODE_CAMERA);
+        }
+    }
+
+    private boolean hasBarcodeCameraPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void showBarcodeCameraReadyDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Camera scanner")
+                .setMessage("Camera access is ready. The next scanner commit will connect the live barcode reader. Manual barcode lookup is available now.")
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void startBarcodeLookup(
