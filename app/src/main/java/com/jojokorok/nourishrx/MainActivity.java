@@ -381,6 +381,13 @@ public class MainActivity extends Activity {
     private Button tabButton(String label, String tab) {
         boolean selected = currentTab.equals(tab);
         Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_GREEN : Color.TRANSPARENT);
+        button.setTextSize(12);
+        button.setSingleLine(true);
+        button.setMaxLines(1);
+        button.setEllipsize(TextUtils.TruncateAt.END);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setPadding(dp(4), 0, dp(4), 0);
         button.setOnClickListener(view -> {
             currentTab = tab;
             renderShell();
