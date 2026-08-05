@@ -50,6 +50,7 @@ import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
+import com.jojokorok.nourishrx.premium.PremiumTier;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 
 import java.time.Instant;
@@ -67,6 +68,8 @@ import java.io.InputStream;
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
     private static final int REQUEST_PROFILE_PHOTO = 43;
+    private static final int REQUEST_BARCODE_CAMERA = 44;
+    private static final int REQUEST_BARCODE_SCAN = 45;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
     private static final String PREF_APP_MODE = "app_mode";
     private static final String MODE_MEDICATION = "medication";
@@ -147,12 +150,29 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "Notifications are off. Schedules still stay saved.", Toast.LENGTH_LONG).show();
             }
             renderShell();
+        } else if (requestCode == REQUEST_BARCODE_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera access enabled for barcode scanning.", Toast.LENGTH_SHORT).show();
+                launchBarcodeScanner();
+            } else {
+                Toast.makeText(this, "Camera access is off. Manual barcode lookup still works.", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_BARCODE_SCAN) {
+            if (resultCode == RESULT_OK && data != null) {
+                String barcode = data.getStringExtra(BarcodeScannerActivity.EXTRA_BARCODE);
+                if (!TextUtils.isEmpty(barcode)) {
+                    showBarcodeLookupDialog(barcode.trim(), true);
+                }
+            }
+            return;
+        }
+
         if (requestCode != REQUEST_PROFILE_PHOTO) {
             return;
         }
@@ -361,6 +381,13 @@ public class MainActivity extends Activity {
     private Button tabButton(String label, String tab) {
         boolean selected = currentTab.equals(tab);
         Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_GREEN : Color.TRANSPARENT);
+        button.setTextSize(12);
+        button.setSingleLine(true);
+        button.setMaxLines(1);
+        button.setEllipsize(TextUtils.TruncateAt.END);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setPadding(dp(4), 0, dp(4), 0);
         button.setOnClickListener(view -> {
             currentTab = tab;
             renderShell();
@@ -457,7 +484,9 @@ public class MainActivity extends Activity {
         LinearLayout plan = card();
         plan.addView(text("Plan", 19, COLOR_INK, Typeface.BOLD));
         plan.addView(infoLine("Current access", premiumManager.planLabel()));
-        plan.addView(infoLine("Premium unlock", "Google Play Billing will connect here before paid features are released."));
+        plan.addView(infoLine("Barcode lookups", premiumManager.barcodeAccessLabel()));
+        plan.addView(infoLine("Premium model", premiumManager.premiumProductLabel() + " - " + premiumManager.purchaseModelLabel()));
+        plan.addView(infoLine("Future sync", "Cloud backup and cross-device sync will stay separate from the one-time unlock."));
 
         Button premium = button("View premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
         premium.setOnClickListener(view -> showPremiumOverviewDialog());
@@ -467,6 +496,18 @@ public class MainActivity extends Activity {
         );
         premiumParams.topMargin = dp(14);
         plan.addView(premium, premiumParams);
+
+        if (!premiumManager.isPremiumActive()) {
+            Button unlock = button("Unlock premium", Color.WHITE, COLOR_GREEN);
+            unlock.setOnClickListener(view -> showPremiumPurchaseUnavailableDialog());
+            LinearLayout.LayoutParams unlockParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(46)
+            );
+            unlockParams.topMargin = dp(10);
+            plan.addView(unlock, unlockParams);
+        }
+
         content.addView(plan);
     }
 
@@ -480,9 +521,13 @@ public class MainActivity extends Activity {
     }
 
     private void showPremiumFeatureDialog(PremiumFeature feature) {
+        String accessNote = feature.tier == PremiumTier.ONE_TIME_PREMIUM
+                ? "This is planned for NourishRx Premium, a one-time purchase. Google Play Billing is not connected in this build yet."
+                : "This is planned for a future sync subscription, separate from the one-time Premium unlock.";
+
         new AlertDialog.Builder(this)
                 .setTitle(feature.title)
-                .setMessage(feature.description + "\n\nThis is planned as a premium feature. Google Play Billing is not connected in this build yet.")
+                .setMessage(feature.description + "\n\n" + accessNote)
                 .setNegativeButton("Close", null)
                 .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
                 .show();
@@ -490,18 +535,41 @@ public class MainActivity extends Activity {
 
     private void showPremiumOverviewDialog() {
         StringBuilder message = new StringBuilder();
-        message.append("Current access: ").append(premiumManager.planLabel()).append("\n\n");
-        message.append("Planned premium features:\n");
-        for (PremiumFeature feature : PremiumFeature.values()) {
-            message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
-        }
-        message.append("\nPaid access is not available until Google Play Billing is added.");
+        message.append("Current access: ").append(premiumManager.planLabel()).append("\n");
+        message.append("Barcode lookups: ").append(premiumManager.barcodeAccessLabel()).append("\n");
+        message.append("Premium model: ")
+                .append(premiumManager.premiumProductLabel())
+                .append(" - ")
+                .append(premiumManager.purchaseModelLabel())
+                .append("\n\n");
+        appendPremiumFeatureGroup(message, PremiumTier.ONE_TIME_PREMIUM);
+        message.append("\n");
+        appendPremiumFeatureGroup(message, PremiumTier.SYNC_SUBSCRIPTION);
+        message.append("\nPurchases are not available until Google Play Billing is added.");
 
         new AlertDialog.Builder(this)
                 .setTitle("NourishRx Premium")
                 .setMessage(message.toString())
+                .setNegativeButton("Close", null)
+                .setPositiveButton("Unlock premium", (dialog, which) -> showPremiumPurchaseUnavailableDialog())
+                .show();
+    }
+
+    private void showPremiumPurchaseUnavailableDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Unlock premium")
+                .setMessage(premiumManager.purchaseUnavailableMessage())
                 .setPositiveButton("OK", null)
                 .show();
+    }
+
+    private void appendPremiumFeatureGroup(StringBuilder message, PremiumTier tier) {
+        message.append(tier.label).append(":\n");
+        for (PremiumFeature feature : PremiumFeature.values()) {
+            if (feature.tier == tier) {
+                message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
+            }
+        }
     }
 
     private void renderToday() {
@@ -662,6 +730,10 @@ public class MainActivity extends Activity {
         Button searchFood = button("Find online", COLOR_BLUE, COLOR_BLUE_SOFT);
         searchFood.setOnClickListener(view -> showOpenFoodFactsSearchDialog());
         actions.addView(searchFood, weightedActionParams());
+
+        Button scanBarcode = button("Barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
+        scanBarcode.setOnClickListener(view -> showBarcodeScannerEntryPoint());
+        actions.addView(scanBarcode, weightedActionParams());
         content.addView(actions);
 
         if (foods.isEmpty()) {
@@ -672,6 +744,211 @@ public class MainActivity extends Activity {
         for (NutritionFood food : foods) {
             content.addView(foodCard(food));
         }
+    }
+
+    private void showBarcodeScannerEntryPoint() {
+        showBarcodeLookupDialog("", false);
+    }
+
+    private void showBarcodeLookupDialog(String initialBarcode, boolean autoLookup) {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(18), dp(8), dp(18), 0);
+
+        TextView status = text("", 15, barcodeStatusColor(), Typeface.BOLD);
+        refreshBarcodeStatus(status);
+        body.addView(barcodeAccessPanel(status));
+
+        EditText barcodeField = field("Barcode number", initialBarcode, InputType.TYPE_CLASS_NUMBER);
+        body.addView(barcodeField);
+
+        Button camera = button("Use camera scanner", COLOR_BLUE, COLOR_BLUE_SOFT);
+        camera.setOnClickListener(view -> requestBarcodeCameraAccess());
+        LinearLayout.LayoutParams cameraParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        cameraParams.topMargin = dp(12);
+        body.addView(camera, cameraParams);
+
+        Button premiumPlan = button("Premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
+        premiumPlan.setOnClickListener(view -> showPremiumOverviewDialog());
+        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        premiumParams.topMargin = dp(8);
+        body.addView(premiumPlan, premiumParams);
+
+        body.addView(fieldLabel("Manual lookup"));
+
+        Button lookup = button("Lookup barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
+        LinearLayout.LayoutParams lookupParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
+        lookupParams.topMargin = dp(12);
+        body.addView(lookup, lookupParams);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(body);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Barcode lookup")
+                .setView(scrollView)
+                .setNegativeButton("Close", null)
+                .create();
+
+        lookup.setOnClickListener(view -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
+        dialog.setOnShowListener(dialogInterface -> {
+            if (autoLookup) {
+                lookup.post(() -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
+            } else {
+                barcodeField.requestFocus();
+            }
+        });
+        dialog.show();
+    }
+
+    private void requestBarcodeCameraAccess() {
+        if (!premiumManager.canUseBarcodeLookup()) {
+            showBarcodeLimitDialog();
+            return;
+        }
+
+        if (hasBarcodeCameraPermission()) {
+            launchBarcodeScanner();
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_BARCODE_CAMERA);
+        }
+    }
+
+    private boolean hasBarcodeCameraPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void launchBarcodeScanner() {
+        try {
+            startActivityForResult(new Intent(this, BarcodeScannerActivity.class), REQUEST_BARCODE_SCAN);
+        } catch (Exception exception) {
+            Toast.makeText(this, "Camera scanner could not open.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void startBarcodeLookup(
+            AlertDialog dialog,
+            LinearLayout body,
+            EditText barcodeField,
+            Button lookup,
+            TextView status
+    ) {
+        String code = barcodeField.getText().toString().replaceAll("[^0-9]", "");
+        if (code.length() < 6) {
+            barcodeField.setError("Enter a barcode");
+            return;
+        }
+
+        if (!premiumManager.canUseBarcodeLookup()) {
+            showBarcodeLimitDialog();
+            refreshBarcodeStatus(status);
+            return;
+        }
+
+        barcodeField.setText(code);
+        lookup.setEnabled(false);
+        status.setText("Looking up barcode...");
+
+        new Thread(() -> {
+            try {
+                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(code, currentProfileId);
+                runOnUiThread(() -> {
+                    premiumManager.recordBarcodeLookup();
+                    renderOpenFoodFactsInspection(
+                            dialog,
+                            body,
+                            food,
+                            "OpenFoodFacts barcode " + code
+                    );
+                });
+            } catch (Exception exception) {
+                runOnUiThread(() -> {
+                    lookup.setEnabled(true);
+                    refreshBarcodeStatus(status);
+                    Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
+    }
+
+    private String barcodeStatusText() {
+        if (premiumManager.isPremiumActive()) {
+            return "Premium barcode scans are unlimited.";
+        }
+
+        int remaining = premiumManager.barcodeLookupsRemaining();
+        if (remaining == 0) {
+            return "Free barcode lookups used.";
+        }
+
+        String lookupLabel = remaining == 1 ? "lookup" : "lookups";
+        return remaining + " free barcode " + lookupLabel + " remaining.";
+    }
+
+    private int barcodeStatusColor() {
+        if (premiumManager.isPremiumActive()) {
+            return COLOR_GREEN;
+        }
+
+        int remaining = premiumManager.barcodeLookupsRemaining();
+        if (remaining == 0) {
+            return COLOR_CORAL;
+        }
+        if (remaining <= 2) {
+            return COLOR_GOLD;
+        }
+        return COLOR_INK;
+    }
+
+    private void refreshBarcodeStatus(TextView status) {
+        status.setText(barcodeStatusText());
+        status.setTextColor(barcodeStatusColor());
+    }
+
+    private View barcodeAccessPanel(TextView status) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(12), dp(14), dp(12));
+        panel.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
+
+        TextView label = text("Barcode access", 12, COLOR_MUTED, Typeface.BOLD);
+        panel.addView(label);
+
+        status.setPadding(0, dp(2), 0, dp(4));
+        panel.addView(status);
+
+        TextView note = text("Scan or type a UPC/EAN code to inspect nutrition facts before saving. Manual food entry stays available.", 12, COLOR_MUTED, Typeface.BOLD);
+        panel.addView(note);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.bottomMargin = dp(10);
+        panel.setLayoutParams(params);
+        return panel;
+    }
+
+    private void showBarcodeLimitDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Barcode limit reached")
+                .setMessage("Free barcode lookups are used up for this install. You can still add foods manually, or unlock premium for unlimited barcode scans once purchases are connected.")
+                .setNegativeButton("Close", null)
+                .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
+                .show();
     }
 
     private void renderNutritionBody() {
@@ -2462,9 +2739,18 @@ public class MainActivity extends Activity {
             NutritionFood food,
             OpenFoodFactsClient.SearchResult result
     ) {
+        renderOpenFoodFactsInspection(dialog, body, food, "OpenFoodFacts barcode " + result.code);
+    }
+
+    private void renderOpenFoodFactsInspection(
+            AlertDialog dialog,
+            LinearLayout body,
+            NutritionFood food,
+            String sourceLine
+    ) {
         body.removeAllViews();
         body.addView(text(food.displayName(), 21, COLOR_INK, Typeface.BOLD));
-        body.addView(text("OpenFoodFacts barcode " + result.code, 12, COLOR_MUTED, Typeface.NORMAL));
+        body.addView(text(sourceLine, 12, COLOR_MUTED, Typeface.NORMAL));
         body.addView(fieldLabel("Serving"));
         body.addView(nutritionFactRow("Serving size", food.servingSize.isEmpty() ? "Not listed" : food.servingSize));
         body.addView(nutritionFactRow("Servings per container", food.servingsPerContainer > 0.0f ? formatServings(food.servingsPerContainer) : "Not listed"));
