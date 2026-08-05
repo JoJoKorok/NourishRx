@@ -756,7 +756,7 @@ public class MainActivity extends Activity {
         EditText barcodeField = field("Barcode number", initialBarcode, InputType.TYPE_CLASS_NUMBER);
         body.addView(barcodeField);
 
-        TextView status = text("Enter a UPC or EAN barcode.", 13, COLOR_MUTED, Typeface.BOLD);
+        TextView status = text(barcodeStatusText(), 13, COLOR_MUTED, Typeface.BOLD);
         status.setPadding(0, dp(10), 0, 0);
         body.addView(status);
 
@@ -800,6 +800,11 @@ public class MainActivity extends Activity {
     }
 
     private void requestBarcodeCameraAccess() {
+        if (!premiumManager.canUseBarcodeLookup()) {
+            showBarcodeLimitDialog();
+            return;
+        }
+
         if (hasBarcodeCameraPermission()) {
             launchBarcodeScanner();
             return;
@@ -836,6 +841,12 @@ public class MainActivity extends Activity {
             return;
         }
 
+        if (!premiumManager.canUseBarcodeLookup()) {
+            showBarcodeLimitDialog();
+            status.setText(barcodeStatusText());
+            return;
+        }
+
         barcodeField.setText(code);
         lookup.setEnabled(false);
         status.setText("Looking up barcode...");
@@ -843,20 +854,36 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             try {
                 NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(code, currentProfileId);
-                runOnUiThread(() -> renderOpenFoodFactsInspection(
-                        dialog,
-                        body,
-                        food,
-                        "OpenFoodFacts barcode " + code
-                ));
+                runOnUiThread(() -> {
+                    premiumManager.recordBarcodeLookup();
+                    renderOpenFoodFactsInspection(
+                            dialog,
+                            body,
+                            food,
+                            "OpenFoodFacts barcode " + code
+                    );
+                });
             } catch (Exception exception) {
                 runOnUiThread(() -> {
                     lookup.setEnabled(true);
-                    status.setText("Barcode lookup failed. Check the code and try again.");
+                    status.setText(barcodeStatusText());
                     Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
         }).start();
+    }
+
+    private String barcodeStatusText() {
+        return "Enter a UPC or EAN barcode. " + premiumManager.barcodeAccessLabel();
+    }
+
+    private void showBarcodeLimitDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Barcode limit reached")
+                .setMessage("Free barcode lookups are used up for this install. You can still add foods manually, or unlock premium for unlimited barcode scans once purchases are connected.")
+                .setNegativeButton("Close", null)
+                .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
+                .show();
     }
 
     private void renderNutritionBody() {
