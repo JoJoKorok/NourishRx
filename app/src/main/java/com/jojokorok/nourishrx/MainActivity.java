@@ -753,12 +753,12 @@ public class MainActivity extends Activity {
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(18), dp(8), dp(18), 0);
 
+        TextView status = text("", 15, barcodeStatusColor(), Typeface.BOLD);
+        refreshBarcodeStatus(status);
+        body.addView(barcodeAccessPanel(status));
+
         EditText barcodeField = field("Barcode number", initialBarcode, InputType.TYPE_CLASS_NUMBER);
         body.addView(barcodeField);
-
-        TextView status = text(barcodeStatusText(), 13, COLOR_MUTED, Typeface.BOLD);
-        status.setPadding(0, dp(10), 0, 0);
-        body.addView(status);
 
         Button camera = button("Use camera scanner", COLOR_BLUE, COLOR_BLUE_SOFT);
         camera.setOnClickListener(view -> requestBarcodeCameraAccess());
@@ -768,6 +768,15 @@ public class MainActivity extends Activity {
         );
         cameraParams.topMargin = dp(12);
         body.addView(camera, cameraParams);
+
+        Button premiumPlan = button("Premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
+        premiumPlan.setOnClickListener(view -> showPremiumOverviewDialog());
+        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        premiumParams.topMargin = dp(8);
+        body.addView(premiumPlan, premiumParams);
 
         body.addView(fieldLabel("Manual lookup"));
 
@@ -843,7 +852,7 @@ public class MainActivity extends Activity {
 
         if (!premiumManager.canUseBarcodeLookup()) {
             showBarcodeLimitDialog();
-            status.setText(barcodeStatusText());
+            refreshBarcodeStatus(status);
             return;
         }
 
@@ -866,7 +875,7 @@ public class MainActivity extends Activity {
             } catch (Exception exception) {
                 runOnUiThread(() -> {
                     lookup.setEnabled(true);
-                    status.setText(barcodeStatusText());
+                    refreshBarcodeStatus(status);
                     Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
@@ -874,7 +883,61 @@ public class MainActivity extends Activity {
     }
 
     private String barcodeStatusText() {
-        return "Enter a UPC or EAN barcode. " + premiumManager.barcodeAccessLabel();
+        if (premiumManager.isPremiumActive()) {
+            return "Premium barcode scans are unlimited.";
+        }
+
+        int remaining = premiumManager.barcodeLookupsRemaining();
+        if (remaining == 0) {
+            return "Free barcode lookups used.";
+        }
+
+        String lookupLabel = remaining == 1 ? "lookup" : "lookups";
+        return remaining + " free barcode " + lookupLabel + " remaining.";
+    }
+
+    private int barcodeStatusColor() {
+        if (premiumManager.isPremiumActive()) {
+            return COLOR_GREEN;
+        }
+
+        int remaining = premiumManager.barcodeLookupsRemaining();
+        if (remaining == 0) {
+            return COLOR_CORAL;
+        }
+        if (remaining <= 2) {
+            return COLOR_GOLD;
+        }
+        return COLOR_INK;
+    }
+
+    private void refreshBarcodeStatus(TextView status) {
+        status.setText(barcodeStatusText());
+        status.setTextColor(barcodeStatusColor());
+    }
+
+    private View barcodeAccessPanel(TextView status) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(12), dp(14), dp(12));
+        panel.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
+
+        TextView label = text("Barcode access", 12, COLOR_MUTED, Typeface.BOLD);
+        panel.addView(label);
+
+        status.setPadding(0, dp(2), 0, dp(4));
+        panel.addView(status);
+
+        TextView note = text("Scan or type a UPC/EAN code to inspect nutrition facts before saving. Manual food entry stays available.", 12, COLOR_MUTED, Typeface.BOLD);
+        panel.addView(note);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.bottomMargin = dp(10);
+        panel.setLayoutParams(params);
+        return panel;
     }
 
     private void showBarcodeLimitDialog() {
