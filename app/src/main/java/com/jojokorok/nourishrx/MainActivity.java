@@ -484,6 +484,7 @@ public class MainActivity extends Activity {
         LinearLayout plan = card();
         plan.addView(text("Plan", 19, COLOR_INK, Typeface.BOLD));
         plan.addView(infoLine("Current access", premiumManager.planLabel()));
+        plan.addView(infoLine("Barcode lookups", premiumManager.barcodeAccessLabel()));
         plan.addView(infoLine("Premium model", premiumManager.premiumProductLabel() + " - " + premiumManager.purchaseModelLabel()));
         plan.addView(infoLine("Future sync", "Cloud backup and cross-device sync will stay separate from the one-time unlock."));
 
@@ -535,6 +536,7 @@ public class MainActivity extends Activity {
     private void showPremiumOverviewDialog() {
         StringBuilder message = new StringBuilder();
         message.append("Current access: ").append(premiumManager.planLabel()).append("\n");
+        message.append("Barcode lookups: ").append(premiumManager.barcodeAccessLabel()).append("\n");
         message.append("Premium model: ")
                 .append(premiumManager.premiumProductLabel())
                 .append(" - ")
