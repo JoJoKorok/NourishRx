@@ -48,10 +48,10 @@ import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.SavedMeal;
 import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
+import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
-import com.jojokorok.nourishrx.premium.PremiumTier;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 import com.jojokorok.nourishrx.ui.NourishColors;
 import com.jojokorok.nourishrx.ui.NourishUi;
@@ -78,7 +78,6 @@ public class MainActivity extends Activity {
     private static final String MODE_MEDICATION = "medication";
     private static final String MODE_NUTRITION = "nutrition";
     private static final String TAB_ABOUT = "about";
-    private static final String GITHUB_PROFILE_URL = "https://github.com/JoJoKorok";
 
     private static final int COLOR_SURFACE = NourishColors.SURFACE;
     private static final int COLOR_CARD = NourishColors.CARD;
@@ -103,6 +102,7 @@ public class MainActivity extends Activity {
     private MedicationStore store;
     private PremiumManager premiumManager;
     private NourishUi ui;
+    private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
     private LinearLayout root;
     private LinearLayout content;
@@ -117,13 +117,14 @@ public class MainActivity extends Activity {
         ui = new NourishUi(this);
         store = new MedicationStore(this);
         premiumManager = new PremiumManager(this);
+        aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         barcodeLookupFlow = new BarcodeLookupFlow(
                 this,
                 ui,
                 premiumManager,
                 () -> currentProfileId,
                 (dialog, body, food, sourceLine) -> renderOpenFoodFactsInspection(dialog, body, food, sourceLine),
-                this::showPremiumOverviewDialog,
+                aboutPremiumFlow::showPremiumOverviewDialog,
                 REQUEST_BARCODE_CAMERA,
                 REQUEST_BARCODE_SCAN
         );
@@ -410,7 +411,7 @@ public class MainActivity extends Activity {
     private void renderCurrentTab() {
         content.removeAllViews();
         if (TAB_ABOUT.equals(currentTab)) {
-            renderAbout();
+            aboutPremiumFlow.renderAbout(content);
             return;
         }
 
@@ -438,146 +439,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void renderAbout() {
-        content.addView(sectionTitle("About", "Created by Joseph Bekele"));
-
-        LinearLayout hero = card();
-        hero.setBackground(roundedGradient(
-                new int[]{
-                        Color.rgb(229, 244, 238),
-                        Color.rgb(236, 242, 255),
-                        Color.rgb(255, 251, 239)
-                },
-                dp(24)
-        ));
-
-        TextView mark = text("NR", 24, Color.WHITE, Typeface.BOLD);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(28)));
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(58), dp(58));
-        markParams.bottomMargin = dp(12);
-        hero.addView(mark, markParams);
-
-        TextView title = displayText("NourishRx", 32, COLOR_INK);
-        hero.addView(title);
-        TextView byline = text("Created by Joseph Bekele", 16, COLOR_GREEN, Typeface.BOLD);
-        byline.setPadding(0, dp(4), 0, 0);
-        hero.addView(byline);
-        TextView summary = text(
-                "A local-first Android organizer for medication scheduling, nutrition logging, water intake, weight tracking, and shared profiles.",
-                15,
-                COLOR_MUTED,
-                Typeface.BOLD
-        );
-        summary.setPadding(0, dp(12), 0, 0);
-        hero.addView(summary);
-        content.addView(hero);
-
-        LinearLayout project = card();
-        project.addView(text("Project", 19, COLOR_INK, Typeface.BOLD));
-        project.addView(infoLine("License", "MIT License"));
-        project.addView(infoLine("Privacy", "Local device storage; OpenFoodFacts is contacted only when searching online foods."));
-        project.addView(infoLine("GitHub", "github.com/JoJoKorok"));
-
-        Button github = button("Open GitHub", Color.WHITE, COLOR_BLUE);
-        github.setOnClickListener(view -> openExternalLink(GITHUB_PROFILE_URL));
-        LinearLayout.LayoutParams githubParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        githubParams.topMargin = dp(14);
-        project.addView(github, githubParams);
-        content.addView(project);
-
-        LinearLayout plan = card();
-        plan.addView(text("Plan", 19, COLOR_INK, Typeface.BOLD));
-        plan.addView(infoLine("Current access", premiumManager.planLabel()));
-        plan.addView(infoLine("Barcode lookups", premiumManager.barcodeAccessLabel()));
-        plan.addView(infoLine("Premium model", premiumManager.premiumProductLabel() + " - " + premiumManager.purchaseModelLabel()));
-        plan.addView(infoLine("Future sync", "Cloud backup and cross-device sync will stay separate from the one-time unlock."));
-
-        Button premium = button("View premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
-        premium.setOnClickListener(view -> showPremiumOverviewDialog());
-        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        premiumParams.topMargin = dp(14);
-        plan.addView(premium, premiumParams);
-
-        if (!premiumManager.isPremiumActive()) {
-            Button unlock = button("Unlock premium", Color.WHITE, COLOR_GREEN);
-            unlock.setOnClickListener(view -> showPremiumPurchaseUnavailableDialog());
-            LinearLayout.LayoutParams unlockParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(46)
-            );
-            unlockParams.topMargin = dp(10);
-            plan.addView(unlock, unlockParams);
-        }
-
-        content.addView(plan);
-    }
-
     private boolean requirePremium(PremiumFeature feature) {
-        if (premiumManager.canUse(feature)) {
-            return true;
-        }
-
-        showPremiumFeatureDialog(feature);
-        return false;
-    }
-
-    private void showPremiumFeatureDialog(PremiumFeature feature) {
-        String accessNote = feature.tier == PremiumTier.ONE_TIME_PREMIUM
-                ? "This is planned for NourishRx Premium, a one-time purchase. Google Play Billing is not connected in this build yet."
-                : "This is planned for a future sync subscription, separate from the one-time Premium unlock.";
-
-        new AlertDialog.Builder(this)
-                .setTitle(feature.title)
-                .setMessage(feature.description + "\n\n" + accessNote)
-                .setNegativeButton("Close", null)
-                .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
-                .show();
-    }
-
-    private void showPremiumOverviewDialog() {
-        StringBuilder message = new StringBuilder();
-        message.append("Current access: ").append(premiumManager.planLabel()).append("\n");
-        message.append("Barcode lookups: ").append(premiumManager.barcodeAccessLabel()).append("\n");
-        message.append("Premium model: ")
-                .append(premiumManager.premiumProductLabel())
-                .append(" - ")
-                .append(premiumManager.purchaseModelLabel())
-                .append("\n\n");
-        appendPremiumFeatureGroup(message, PremiumTier.ONE_TIME_PREMIUM);
-        message.append("\n");
-        appendPremiumFeatureGroup(message, PremiumTier.SYNC_SUBSCRIPTION);
-        message.append("\nPurchases are not available until Google Play Billing is added.");
-
-        new AlertDialog.Builder(this)
-                .setTitle("NourishRx Premium")
-                .setMessage(message.toString())
-                .setNegativeButton("Close", null)
-                .setPositiveButton("Unlock premium", (dialog, which) -> showPremiumPurchaseUnavailableDialog())
-                .show();
-    }
-
-    private void showPremiumPurchaseUnavailableDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Unlock premium")
-                .setMessage(premiumManager.purchaseUnavailableMessage())
-                .setPositiveButton("OK", null)
-                .show();
-    }
-
-    private void appendPremiumFeatureGroup(StringBuilder message, PremiumTier tier) {
-        message.append(tier.label).append(":\n");
-        for (PremiumFeature feature : PremiumFeature.values()) {
-            if (feature.tier == tier) {
-                message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
-            }
-        }
+        return aboutPremiumFlow.requirePremium(feature);
     }
 
     private void renderToday() {
@@ -3336,15 +3199,6 @@ public class MainActivity extends Activity {
         valueView.setPadding(0, dp(2), 0, 0);
         line.addView(valueView);
         return line;
-    }
-
-    private void openExternalLink(String url) {
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        try {
-            startActivity(intent);
-        } catch (Exception exception) {
-            Toast.makeText(this, "No browser is available for this link.", Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void handleAlertsTap() {
