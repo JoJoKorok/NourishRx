@@ -52,6 +52,8 @@ import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.premium.PremiumTier;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
+import com.jojokorok.nourishrx.ui.NourishColors;
+import com.jojokorok.nourishrx.ui.NourishUi;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -77,20 +79,20 @@ public class MainActivity extends Activity {
     private static final String TAB_ABOUT = "about";
     private static final String GITHUB_PROFILE_URL = "https://github.com/JoJoKorok";
 
-    private static final int COLOR_SURFACE = Color.rgb(246, 242, 232);
-    private static final int COLOR_CARD = Color.rgb(255, 252, 246);
-    private static final int COLOR_INK = Color.rgb(32, 37, 50);
-    private static final int COLOR_MUTED = Color.rgb(102, 99, 112);
-    private static final int COLOR_GREEN = Color.rgb(32, 120, 100);
-    private static final int COLOR_GREEN_SOFT = Color.rgb(220, 242, 233);
-    private static final int COLOR_CORAL = Color.rgb(214, 95, 73);
-    private static final int COLOR_CORAL_SOFT = Color.rgb(252, 228, 219);
-    private static final int COLOR_BLUE = Color.rgb(70, 111, 168);
-    private static final int COLOR_BLUE_SOFT = Color.rgb(226, 235, 249);
-    private static final int COLOR_GOLD = Color.rgb(179, 127, 47);
-    private static final int COLOR_GOLD_SOFT = Color.rgb(255, 240, 201);
-    private static final int COLOR_BORDER = Color.rgb(224, 217, 203);
-    private static final int COLOR_TAB_TRACK = Color.rgb(234, 228, 214);
+    private static final int COLOR_SURFACE = NourishColors.SURFACE;
+    private static final int COLOR_CARD = NourishColors.CARD;
+    private static final int COLOR_INK = NourishColors.INK;
+    private static final int COLOR_MUTED = NourishColors.MUTED;
+    private static final int COLOR_GREEN = NourishColors.GREEN;
+    private static final int COLOR_GREEN_SOFT = NourishColors.GREEN_SOFT;
+    private static final int COLOR_CORAL = NourishColors.CORAL;
+    private static final int COLOR_CORAL_SOFT = NourishColors.CORAL_SOFT;
+    private static final int COLOR_BLUE = NourishColors.BLUE;
+    private static final int COLOR_BLUE_SOFT = NourishColors.BLUE_SOFT;
+    private static final int COLOR_GOLD = NourishColors.GOLD;
+    private static final int COLOR_GOLD_SOFT = NourishColors.GOLD_SOFT;
+    private static final int COLOR_BORDER = NourishColors.BORDER;
+    private static final int COLOR_TAB_TRACK = NourishColors.TAB_TRACK;
 
     private final ZoneId zoneId = ZoneId.systemDefault();
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault());
@@ -99,6 +101,7 @@ public class MainActivity extends Activity {
 
     private MedicationStore store;
     private PremiumManager premiumManager;
+    private NourishUi ui;
     private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
@@ -109,6 +112,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ui = new NourishUi(this);
         store = new MedicationStore(this);
         premiumManager = new PremiumManager(this);
         currentProfileId = loadSelectedProfileId();
@@ -3649,18 +3653,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout card() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(14), dp(16), dp(14));
-        card.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(22)));
-        card.setElevation(dp(1));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(10);
-        card.setLayoutParams(params);
-        return card;
+        return ui.card();
     }
 
     private LinearLayout actionRow() {
@@ -3671,115 +3664,43 @@ public class MainActivity extends Activity {
     }
 
     private TextView statusBadge(String label) {
-        int textColor = COLOR_BLUE;
-        int background = COLOR_BLUE_SOFT;
-        if ("Taken".equals(label) || "Active".equals(label) || "OK".equals(label)) {
-            textColor = COLOR_GREEN;
-            background = COLOR_GREEN_SOFT;
-        } else if ("Due".equals(label) || "Skipped".equals(label) || "Paused".equals(label) || "Refill".equals(label)) {
-            textColor = COLOR_CORAL;
-            background = COLOR_CORAL_SOFT;
-        }
-        TextView badge = text(label, 12, textColor, Typeface.BOLD);
-        badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(12), dp(6), dp(12), dp(6));
-        badge.setBackground(rounded(background, Color.TRANSPARENT, dp(16)));
-        return badge;
+        return ui.statusBadge(label);
     }
 
     private TextView timePill(String value) {
-        TextView pill = text(value, 13, COLOR_BLUE, Typeface.BOLD);
-        pill.setGravity(Gravity.CENTER);
-        pill.setBackground(rounded(COLOR_BLUE_SOFT, Color.TRANSPARENT, dp(18)));
-        return pill;
+        return ui.timePill(value);
     }
 
     private TextView summaryPill(String label, int textColor, int background) {
-        TextView pill = text(label, 12, textColor, Typeface.BOLD);
-        pill.setGravity(Gravity.CENTER);
-        pill.setPadding(dp(10), dp(7), dp(10), dp(7));
-        pill.setBackground(rounded(background, Color.TRANSPARENT, dp(18)));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        params.rightMargin = dp(8);
-        pill.setLayoutParams(params);
-        return pill;
+        return ui.summaryPill(label, textColor, background);
     }
 
     private TextView displayText(String value, int sp, int color) {
-        TextView textView = text(value, sp, color, Typeface.BOLD);
-        textView.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
-        textView.setIncludeFontPadding(false);
-        return textView;
+        return ui.displayText(value, sp, color);
     }
 
     private TextView text(String value, int sp, int color, int style) {
-        TextView textView = new TextView(this);
-        textView.setText(value);
-        textView.setTextColor(color);
-        textView.setTextSize(sp);
-        textView.setTypeface(Typeface.create("sans-serif", style));
-        textView.setLineSpacing(dp(2), 1.0f);
-        return textView;
+        return ui.text(value, sp, color, style);
     }
 
     private TextView fieldLabel(String value) {
-        TextView label = text(value, 13, COLOR_MUTED, Typeface.BOLD);
-        label.setPadding(0, dp(10), 0, dp(3));
-        return label;
+        return ui.fieldLabel(value);
     }
 
     private EditText field(String hint, String value, int inputType) {
-        EditText field = new EditText(this);
-        field.setHint(hint);
-        field.setText(value);
-        field.setInputType(inputType);
-        field.setSingleLine(!hint.equals("Instructions"));
-        field.setTextColor(COLOR_INK);
-        field.setHintTextColor(COLOR_MUTED);
-        field.setTextSize(15);
-        field.setPadding(dp(14), dp(10), dp(14), dp(10));
-        field.setMinHeight(dp(48));
-        field.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(8);
-        field.setLayoutParams(params);
-        return field;
+        return ui.field(hint, value, inputType);
     }
 
     private Button button(String label, int textColor, int backgroundColor) {
-        Button button = new Button(this);
-        button.setAllCaps(false);
-        button.setText(label);
-        button.setTextColor(textColor);
-        button.setTextSize(14);
-        button.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        button.setMinHeight(dp(42));
-        button.setMinWidth(dp(68));
-        button.setPadding(dp(12), 0, dp(12), 0);
-        int stroke = backgroundColor == Color.TRANSPARENT || backgroundColor == Color.WHITE
-                ? COLOR_BORDER
-                : Color.TRANSPARENT;
-        button.setBackground(rounded(backgroundColor, stroke, dp(18)));
-        return button;
+        return ui.button(label, textColor, backgroundColor);
     }
 
     private GradientDrawable rounded(int color, int strokeColor, int radius) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(color);
-        drawable.setCornerRadius(radius);
-        if (strokeColor != Color.TRANSPARENT) {
-            drawable.setStroke(dp(1), strokeColor);
-        }
-        return drawable;
+        return ui.rounded(color, strokeColor, radius);
     }
 
     private GradientDrawable roundedGradient(int[] colors, int radius) {
-        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, colors);
-        drawable.setCornerRadius(radius);
-        return drawable;
+        return ui.roundedGradient(colors, radius);
     }
 
     private LinearLayout.LayoutParams compactButtonParams() {
@@ -3956,7 +3877,7 @@ public class MainActivity extends Activity {
     }
 
     private int dp(float value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return ui.dp(value);
     }
 
     private final class ProfilePhotoEditorView extends View {
