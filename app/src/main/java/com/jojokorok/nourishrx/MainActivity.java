@@ -50,6 +50,7 @@ import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
@@ -104,6 +105,7 @@ public class MainActivity extends Activity {
     private NourishUi ui;
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
+    private NutritionScreens nutritionScreens;
     private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
@@ -128,6 +130,7 @@ public class MainActivity extends Activity {
                 REQUEST_BARCODE_CAMERA,
                 REQUEST_BARCODE_SCAN
         );
+        nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
@@ -417,15 +420,15 @@ public class MainActivity extends Activity {
 
         if (MODE_NUTRITION.equals(currentMode)) {
             if ("nutrition_meals".equals(currentTab)) {
-                renderNutritionMeals();
+                nutritionScreens.renderMeals(content);
             } else if ("nutrition_saved".equals(currentTab)) {
-                renderNutritionSavedMeals();
+                nutritionScreens.renderSavedMeals(content);
             } else if ("nutrition_foods".equals(currentTab)) {
-                renderNutritionFoods();
+                nutritionScreens.renderFoods(content);
             } else if ("nutrition_body".equals(currentTab)) {
-                renderNutritionBody();
+                nutritionScreens.renderBody(content);
             } else {
-                renderNutritionToday();
+                nutritionScreens.renderToday(content);
             }
             return;
         }
@@ -441,6 +444,125 @@ public class MainActivity extends Activity {
 
     private boolean requirePremium(PremiumFeature feature) {
         return aboutPremiumFlow.requirePremium(feature);
+    }
+
+    private NutritionScreens.Callbacks nutritionCallbacks() {
+        return new NutritionScreens.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String selectedProfileName() {
+                return MainActivity.this.selectedProfileName();
+            }
+
+            @Override
+            public String plural(long count, String singular, String plural) {
+                return MainActivity.this.plural(count, singular, plural);
+            }
+
+            @Override
+            public int distinctMealCount(List<MealFoodLog> logs) {
+                return MainActivity.this.distinctMealCount(logs);
+            }
+
+            @Override
+            public List<String> mealNamesForLogs(List<MealFoodLog> logs) {
+                return MainActivity.this.mealNamesForLogs(logs);
+            }
+
+            @Override
+            public List<MealFoodLog> logsForMeal(List<MealFoodLog> logs, String mealName) {
+                return MainActivity.this.logsForMeal(logs, mealName);
+            }
+
+            @Override
+            public NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
+                return MainActivity.this.totalsFromMealLogs(logs);
+            }
+
+            @Override
+            public View sectionTitle(String title, String subtitle) {
+                return MainActivity.this.sectionTitle(title, subtitle);
+            }
+
+            @Override
+            public void emptyState(String message, String action, View.OnClickListener listener) {
+                MainActivity.this.emptyState(message, action, listener);
+            }
+
+            @Override
+            public View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
+                return MainActivity.this.nutritionSummaryCard(calories, protein, carbs, fat);
+            }
+
+            @Override
+            public View dailyNutritionFactsCard(NutritionTotals totals) {
+                return MainActivity.this.dailyNutritionFactsCard(totals);
+            }
+
+            @Override
+            public View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
+                return MainActivity.this.mealTotalsCard(mealName, logs);
+            }
+
+            @Override
+            public View defaultMealsCard(List<String> mealDefaults) {
+                return MainActivity.this.defaultMealsCard(mealDefaults);
+            }
+
+            @Override
+            public View waterCard(int waterOunces, long startMillis, long endMillis) {
+                return MainActivity.this.waterCard(waterOunces, startMillis, endMillis);
+            }
+
+            @Override
+            public View weightCard(List<WeightEntry> weights) {
+                return MainActivity.this.weightCard(weights);
+            }
+
+            @Override
+            public View mealLogCard(MealFoodLog log) {
+                return MainActivity.this.mealLogCard(log);
+            }
+
+            @Override
+            public View savedMealCard(SavedMeal savedMeal) {
+                return MainActivity.this.savedMealCard(savedMeal);
+            }
+
+            @Override
+            public View foodCard(NutritionFood food) {
+                return MainActivity.this.foodCard(food);
+            }
+
+            @Override
+            public void showLogFoodDialog(String mealName) {
+                MainActivity.this.showLogFoodDialog(mealName);
+            }
+
+            @Override
+            public void showSavedMealDialog() {
+                MainActivity.this.showSavedMealDialog(null);
+            }
+
+            @Override
+            public void showFoodDialog() {
+                MainActivity.this.showFoodDialog(null);
+            }
+
+            @Override
+            public void showOpenFoodFactsSearchDialog() {
+                MainActivity.this.showOpenFoodFactsSearchDialog();
+            }
+
+            @Override
+            public void showBarcodeEntryPoint() {
+                MainActivity.this.barcodeLookupFlow.showEntryPoint();
+            }
+        };
     }
 
     private void renderToday() {
@@ -497,136 +619,6 @@ public class MainActivity extends Activity {
         for (Medication medication : medications) {
             content.addView(inventoryCard(medication));
         }
-    }
-
-    private void renderNutritionToday() {
-        LocalDate today = LocalDate.now(zoneId);
-        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        List<MealFoodLog> logs = store.getMealFoodLogs(currentProfileId, start, end);
-        List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 5);
-        int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-        NutritionTotals totals = totalsFromMealLogs(logs);
-
-        content.addView(sectionTitle("Nutrition", selectedProfileName() + " has " + logs.size() + " foods logged today"));
-        content.addView(nutritionSummaryCard(totals.calories, totals.proteinGrams, totals.totalCarbsGrams, totals.totalFatGrams));
-        content.addView(dailyNutritionFactsCard(totals));
-        content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
-        content.addView(waterCard(waterOunces, start, end));
-        content.addView(weightCard(weights));
-
-        content.addView(sectionTitle("Meal log", logs.isEmpty() ? "No foods logged yet" : plural(distinctMealCount(logs), "meal", "meals") + " today"));
-        if (logs.isEmpty()) {
-            emptyState("Create foods once, then log them into any meal.", "Log food", view -> showLogFoodDialog(""));
-            return;
-        }
-
-        for (MealFoodLog log : logs) {
-            content.addView(mealLogCard(log));
-        }
-    }
-
-    private void renderNutritionMeals() {
-        LocalDate today = LocalDate.now(zoneId);
-        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        List<MealFoodLog> logs = store.getMealFoodLogs(currentProfileId, start, end);
-
-        content.addView(sectionTitle("Meals", logs.isEmpty() ? "No foods logged today" : plural(logs.size(), "food entry", "food entries") + " today"));
-        content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
-        Button addMeal = button("+ Log food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addMeal.setOnClickListener(view -> showLogFoodDialog(""));
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(4);
-        content.addView(addMeal, addParams);
-
-        if (logs.isEmpty()) {
-            emptyState("Pick a saved food and add it into breakfast, lunch, dinner, or any meal you name.", "Log food", view -> showLogFoodDialog(""));
-            return;
-        }
-
-        for (String mealName : mealNamesForLogs(logs)) {
-            List<MealFoodLog> mealLogs = logsForMeal(logs, mealName);
-            content.addView(mealTotalsCard(mealName, mealLogs));
-            for (MealFoodLog log : mealLogs) {
-                content.addView(mealLogCard(log));
-            }
-        }
-    }
-
-    private void renderNutritionSavedMeals() {
-        List<SavedMeal> savedMeals = store.getSavedMeals(currentProfileId);
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-
-        content.addView(sectionTitle("Saved", savedMeals.isEmpty() ? "No saved meal combinations yet" : plural(savedMeals.size(), "saved meal", "saved meals")));
-
-        Button create = button("+ Saved meal", COLOR_GREEN, COLOR_GREEN_SOFT);
-        create.setOnClickListener(view -> showSavedMealDialog(null));
-        LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        createParams.topMargin = dp(4);
-        content.addView(create, createParams);
-
-        if (foods.isEmpty()) {
-            emptyState("Save food items first, then combine them into reusable meals.", "Add food", view -> showFoodDialog(null));
-            return;
-        }
-
-        if (savedMeals.isEmpty()) {
-            emptyState("Build a reusable meal from foods already saved in the app.", "Create saved meal", view -> showSavedMealDialog(null));
-            return;
-        }
-
-        for (SavedMeal savedMeal : savedMeals) {
-            content.addView(savedMealCard(savedMeal));
-        }
-    }
-
-    private void renderNutritionFoods() {
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-
-        content.addView(sectionTitle("Foods", foods.isEmpty() ? "No saved foods yet" : plural(foods.size(), "saved food", "saved foods")));
-        LinearLayout actions = actionRow();
-        actions.setPadding(0, dp(4), 0, 0);
-
-        Button addFood = button("+ Manual", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addFood.setOnClickListener(view -> showFoodDialog(null));
-        actions.addView(addFood, weightedActionParams());
-
-        Button searchFood = button("Find online", COLOR_BLUE, COLOR_BLUE_SOFT);
-        searchFood.setOnClickListener(view -> showOpenFoodFactsSearchDialog());
-        actions.addView(searchFood, weightedActionParams());
-
-        Button scanBarcode = button("Barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
-        scanBarcode.setOnClickListener(view -> barcodeLookupFlow.showEntryPoint());
-        actions.addView(scanBarcode, weightedActionParams());
-        content.addView(actions);
-
-        if (foods.isEmpty()) {
-            emptyState("Save food items manually or import inspectable options from OpenFoodFacts.", "Search foods", view -> showOpenFoodFactsSearchDialog());
-            return;
-        }
-
-        for (NutritionFood food : foods) {
-            content.addView(foodCard(food));
-        }
-    }
-
-    private void renderNutritionBody() {
-        LocalDate today = LocalDate.now(zoneId);
-        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-        List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 10);
-
-        content.addView(sectionTitle("Body", "Track water intake and weight"));
-        content.addView(waterCard(waterOunces, start, end));
-        content.addView(weightCard(weights));
     }
 
     private View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
