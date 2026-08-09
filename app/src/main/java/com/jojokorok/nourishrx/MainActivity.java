@@ -53,6 +53,7 @@ import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
+import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 import com.jojokorok.nourishrx.ui.NourishColors;
 import com.jojokorok.nourishrx.ui.NourishUi;
@@ -106,6 +107,7 @@ public class MainActivity extends Activity {
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
     private NutritionScreens nutritionScreens;
+    private ProfileManagementFlow profileManagementFlow;
     private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
@@ -131,6 +133,7 @@ public class MainActivity extends Activity {
                 REQUEST_BARCODE_SCAN
         );
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
+        profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
@@ -283,7 +286,7 @@ public class MainActivity extends Activity {
         utilityActions.setOrientation(LinearLayout.HORIZONTAL);
 
         Button profileButton = button("Manage profiles", COLOR_BLUE, Color.WHITE);
-        profileButton.setOnClickListener(view -> showProfilesDialog());
+        profileButton.setOnClickListener(view -> profileManagementFlow.showProfilesDialog());
         utilityActions.addView(profileButton, weightedActionParams());
 
         boolean showingAbout = TAB_ABOUT.equals(currentTab);
@@ -561,6 +564,57 @@ public class MainActivity extends Activity {
             @Override
             public void showBarcodeEntryPoint() {
                 MainActivity.this.barcodeLookupFlow.showEntryPoint();
+            }
+        };
+    }
+
+    private ProfileManagementFlow.Callbacks profileCallbacks() {
+        return new ProfileManagementFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void setSelectedProfileId(long profileId) {
+                MainActivity.this.setSelectedProfileId(profileId);
+            }
+
+            @Override
+            public void renderShell() {
+                MainActivity.this.renderShell();
+            }
+
+            @Override
+            public String plural(long count, String singular, String plural) {
+                return MainActivity.this.plural(count, singular, plural);
+            }
+
+            @Override
+            public View profileAvatar(Profile profile, int sizeDp, int fallbackColor, int textSp) {
+                return MainActivity.this.profileAvatar(profile, sizeDp, fallbackColor, textSp);
+            }
+
+            @Override
+            public int avatarWidthDp(Profile profile, int heightDp) {
+                return MainActivity.this.avatarWidthDp(profile, heightDp);
+            }
+
+            @Override
+            public void chooseProfilePhoto(Profile profile) {
+                MainActivity.this.chooseProfilePhoto(profile);
+            }
+
+            @Override
+            public void showProfilePhotoEditor(
+                    Profile profile,
+                    String avatarUri,
+                    float zoom,
+                    float offsetX,
+                    float offsetY,
+                    float aspectRatio
+            ) {
+                MainActivity.this.showProfilePhotoEditor(profile, avatarUri, zoom, offsetX, offsetY, aspectRatio);
             }
         };
     }
@@ -1067,145 +1121,6 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private void showProfilesDialog() {
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(18), dp(8), dp(18), 0);
-
-        final AlertDialog[] dialogRef = new AlertDialog[1];
-        for (Profile profile : store.getProfiles()) {
-            list.addView(profileManagementRow(profile, dialogRef));
-        }
-
-        Button addProfile = button("+ New profile", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addProfile.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            showAddProfileDialog();
-        });
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(12);
-        list.addView(addProfile, addParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(list);
-
-        dialogRef[0] = new AlertDialog.Builder(this)
-                .setTitle("Profiles")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-        dialogRef[0].show();
-    }
-
-    private View profileManagementRow(Profile profile, AlertDialog[] dialogRef) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(12));
-        row.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        boolean selected = profile.id == currentProfileId;
-        View avatar = profileAvatar(profile, 38, selected ? COLOR_GREEN : COLOR_BLUE, 14);
-        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(dp(avatarWidthDp(profile, 38)), dp(38));
-        avatarParams.rightMargin = dp(10);
-        top.addView(avatar, avatarParams);
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        labels.addView(text(profile.name, 17, COLOR_INK, Typeface.BOLD));
-        String subtitle = selected ? "Current profile" : plural(store.getMedicationCountForProfile(profile.id), "med", "meds");
-        labels.addView(text(subtitle, 12, COLOR_MUTED, Typeface.BOLD));
-        top.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        row.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button switchButton = button(selected ? "Current" : "Switch", selected ? COLOR_GREEN : COLOR_BLUE, selected ? COLOR_GREEN_SOFT : COLOR_BLUE_SOFT);
-        switchButton.setOnClickListener(view -> {
-            setSelectedProfileId(profile.id);
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            renderShell();
-        });
-        actions.addView(switchButton, weightedActionParams());
-
-        Button photo = button("Photo", COLOR_GOLD, COLOR_GOLD_SOFT);
-        photo.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            showProfilePhotoOptions(profile);
-        });
-        actions.addView(photo, weightedActionParams());
-        row.addView(actions);
-
-        LinearLayout editActions = actionRow();
-        Button rename = button("Rename", COLOR_BLUE, COLOR_BLUE_SOFT);
-        rename.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            showRenameProfileDialog(profile);
-        });
-        editActions.addView(rename, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            confirmDeleteProfile(profile);
-        });
-        editActions.addView(delete, weightedActionParams());
-        row.addView(editActions);
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(8);
-        row.setLayoutParams(params);
-        return row;
-    }
-
-    private void showProfilePhotoOptions(Profile profile) {
-        if (!profile.hasAvatar()) {
-            chooseProfilePhoto(profile);
-            return;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle(profile.name + " photo")
-                .setItems(new CharSequence[]{"Edit framing", "Change photo", "Remove photo"}, (dialog, which) -> {
-                    if (which == 0) {
-                        showProfilePhotoEditor(
-                                profile,
-                                profile.avatarUri,
-                                profile.avatarZoom,
-                                profile.avatarOffsetX,
-                                profile.avatarOffsetY,
-                                profile.avatarAspectRatio
-                        );
-                    } else if (which == 1) {
-                        chooseProfilePhoto(profile);
-                    } else {
-                        store.clearProfileAvatar(profile.id);
-                        Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
-                        renderShell();
-                    }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
     private void chooseProfilePhoto(Profile profile) {
         pendingPhotoProfileId = profile.id;
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -1333,100 +1248,6 @@ public class MainActivity extends Activity {
                         editor.getAspectRatio()
                 );
                 Toast.makeText(this, "Profile photo updated.", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showRenameProfileDialog(Profile profile) {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText nameField = field("Profile name", profile.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        form.addView(nameField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Rename profile")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-                store.renameProfile(profile.id, name);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void confirmDeleteProfile(Profile profile) {
-        if (store.getProfiles().size() <= 1) {
-            Toast.makeText(this, "Keep at least one profile.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        int medicationCount = store.getMedicationCountForProfile(profile.id);
-        String message = "This removes " + profile.name + " and " +
-                plural(medicationCount, "medication", "medications") +
-                " with dose history from this phone.";
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + profile.name + "?")
-                .setMessage(message)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    for (Medication medication : store.getAllMedications(profile.id)) {
-                        ReminderScheduler.cancel(this, medication.id);
-                    }
-                    boolean deleted = store.deleteProfile(profile.id);
-                    if (deleted && currentProfileId == profile.id) {
-                        List<Profile> profiles = store.getProfiles();
-                        if (!profiles.isEmpty()) {
-                            setSelectedProfileId(profiles.get(0).id);
-                        }
-                    }
-                    ReminderScheduler.scheduleAll(this);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void showAddProfileDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText nameField = field("Person's name", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        form.addView(nameField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("New profile")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Create", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button create = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            create.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-                long profileId = store.saveProfile(name);
-                setSelectedProfileId(profileId);
                 dialog.dismiss();
                 renderShell();
             });
