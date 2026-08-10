@@ -18,9 +18,7 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -42,6 +40,7 @@ import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
+import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
@@ -98,6 +97,7 @@ public class MainActivity extends Activity {
     private NourishUi ui;
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
+    private MedicationEditorFlow medicationEditorFlow;
     private MedicationScreens medicationScreens;
     private NutritionScreens nutritionScreens;
     private ProfileManagementFlow profileManagementFlow;
@@ -126,6 +126,7 @@ public class MainActivity extends Activity {
                 REQUEST_BARCODE_CAMERA,
                 REQUEST_BARCODE_SCAN
         );
+        medicationEditorFlow = new MedicationEditorFlow(this, store, ui, medicationEditorCallbacks());
         medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
@@ -258,7 +259,7 @@ public class MainActivity extends Activity {
             if (nutritionMode) {
                 showLogFoodDialog("");
             } else {
-                showMedicationDialog(null);
+                medicationEditorFlow.show(null);
             }
         });
         top.addView(add, compactButtonParams());
@@ -431,6 +432,20 @@ public class MainActivity extends Activity {
         return aboutPremiumFlow.requirePremium(feature);
     }
 
+    private MedicationEditorFlow.Callbacks medicationEditorCallbacks() {
+        return new MedicationEditorFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void onMedicationSaved() {
+                renderShell();
+            }
+        };
+    }
+
     private MedicationScreens.Callbacks medicationCallbacks() {
         return new MedicationScreens.Callbacks() {
             @Override
@@ -455,7 +470,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void showMedicationDialog(Medication medication) {
-                MainActivity.this.showMedicationDialog(medication);
+                medicationEditorFlow.show(medication);
             }
 
             @Override
@@ -682,12 +697,12 @@ public class MainActivity extends Activity {
         content.addView(sectionTitle("Today", profileName + " has " + rows.size() + " scheduled doses"));
 
         if (store.getActiveMedications(currentProfileId).isEmpty()) {
-            emptyState("Add the first medication for " + profileName + ".", "Add medication", view -> showMedicationDialog(null));
+            emptyState("Add the first medication for " + profileName + ".", "Add medication", view -> medicationEditorFlow.show(null));
             return;
         }
 
         if (rows.isEmpty()) {
-            emptyState("No active doses are scheduled for " + profileName + " today.", "Add medication", view -> showMedicationDialog(null));
+            emptyState("No active doses are scheduled for " + profileName + " today.", "Add medication", view -> medicationEditorFlow.show(null));
             return;
         }
 
@@ -1079,150 +1094,6 @@ public class MainActivity extends Activity {
         }
 
         return card;
-    }
-
-    private void showMedicationDialog(Medication existing) {
-        Medication medication = existing == null ? Medication.empty() : new Medication(
-                existing.id,
-                existing.profileId,
-                existing.name,
-                existing.dosage,
-                existing.instructions,
-                existing.firstDoseMinutes,
-                existing.dosesPerDay,
-                existing.doseMinutes(),
-                existing.quantity,
-                existing.refillThreshold,
-                existing.repeatReminderMinutes,
-                existing.active,
-                existing.createdAt
-        );
-        if (existing == null) {
-            medication.profileId = currentProfileId;
-        }
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(10), dp(18), 0);
-
-        EditText nameField = field("Medication name", medication.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText dosageField = field("Dosage", medication.dosage, InputType.TYPE_CLASS_TEXT);
-        EditText instructionsField = field("Instructions", medication.instructions, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-
-        ArrayList<Integer> selectedDoseMinutes = new ArrayList<>(medication.doseMinutes());
-        TextView frequencySummary = text("", 13, COLOR_MUTED, Typeface.BOLD);
-        LinearLayout doseTimesList = new LinearLayout(this);
-        doseTimesList.setOrientation(LinearLayout.VERTICAL);
-        final Runnable[] renderDoseTimes = new Runnable[1];
-        renderDoseTimes[0] = () -> renderDoseTimeRows(doseTimesList, frequencySummary, selectedDoseMinutes, renderDoseTimes[0]);
-        renderDoseTimes[0].run();
-
-        int[] selectedRepeatReminderMinutes = new int[]{medication.repeatReminderMinutes};
-        TextView repeatSummary = text("", 13, COLOR_MUTED, Typeface.BOLD);
-        LinearLayout repeatOptions = new LinearLayout(this);
-        repeatOptions.setOrientation(LinearLayout.VERTICAL);
-        final Runnable[] renderRepeatOptions = new Runnable[1];
-        renderRepeatOptions[0] = () -> renderRepeatReminderOptions(
-                repeatOptions,
-                repeatSummary,
-                selectedRepeatReminderMinutes,
-                renderRepeatOptions[0]
-        );
-        renderRepeatOptions[0].run();
-
-        Button addDoseTime = button("+ Dose time", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addDoseTime.setOnClickListener(view -> {
-            if (selectedDoseMinutes.size() >= Medication.MAX_DOSES_PER_DAY) {
-                Toast.makeText(this, "Maximum is " + Medication.MAX_DOSES_PER_DAY + " doses per day.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            selectedDoseMinutes.add(nextSuggestedDoseTime(selectedDoseMinutes));
-            renderDoseTimes[0].run();
-        });
-
-        EditText quantityField = field("Current quantity", existing == null ? "" : String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
-        EditText thresholdField = field("Refill threshold", existing == null ? "" : String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
-        CheckBox activeBox = new CheckBox(this);
-        activeBox.setText("Active reminders");
-        activeBox.setTextColor(COLOR_INK);
-        activeBox.setTextSize(15);
-        activeBox.setChecked(medication.active);
-
-        form.addView(nameField);
-        form.addView(dosageField);
-        form.addView(instructionsField);
-        form.addView(fieldLabel("Frequency"));
-        form.addView(frequencySummary);
-        form.addView(doseTimesList);
-        LinearLayout.LayoutParams addDoseParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addDoseParams.topMargin = dp(8);
-        form.addView(addDoseTime, addDoseParams);
-        form.addView(fieldLabel("Repeat alerts"));
-        form.addView(repeatSummary);
-        form.addView(repeatOptions);
-        form.addView(quantityField);
-        form.addView(thresholdField);
-        form.addView(activeBox);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Add medication" : "Edit medication")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                String dosage = dosageField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-                if (dosage.isEmpty()) {
-                    dosageField.setError("Required");
-                    return;
-                }
-
-                Medication toSave = new Medication(
-                        medication.id,
-                        medication.profileId,
-                        name,
-                        dosage,
-                        instructionsField.getText().toString(),
-                        selectedDoseMinutes.get(0),
-                        selectedDoseMinutes.size(),
-                        selectedDoseMinutes,
-                        parseInt(quantityField, 0),
-                        parseInt(thresholdField, 0),
-                        selectedRepeatReminderMinutes[0],
-                        activeBox.isChecked(),
-                        medication.createdAt
-                );
-
-                store.saveMedication(toSave);
-                if (toSave.active) {
-                    ReminderScheduler.scheduleNext(this, toSave);
-                } else {
-                    ReminderScheduler.cancel(this, toSave.id);
-                }
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
     }
 
     private void showInventoryDialog(Medication medication) {
@@ -2336,180 +2207,6 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
-    private void renderDoseTimeRows(
-            LinearLayout container,
-            TextView frequencySummary,
-            ArrayList<Integer> doseMinutes,
-            Runnable refresh
-    ) {
-        normalizeDoseTimes(doseMinutes);
-        frequencySummary.setText("Frequency: " + plural(doseMinutes.size(), "dose/day", "doses/day"));
-        container.removeAllViews();
-
-        for (int i = 0; i < doseMinutes.size(); i++) {
-            int index = i;
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, 0);
-
-            TextView label = text("Dose " + (index + 1), 14, COLOR_INK, Typeface.BOLD);
-            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(72), dp(44));
-            row.addView(label, labelParams);
-
-            Button time = button(Medication.formatMinutes(doseMinutes.get(index)), COLOR_BLUE, COLOR_BLUE_SOFT);
-            time.setOnClickListener(view -> showDoseTimePicker(doseMinutes, index, refresh));
-            row.addView(time, new LinearLayout.LayoutParams(0, dp(44), 1));
-
-            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
-            remove.setEnabled(doseMinutes.size() > 1);
-            remove.setAlpha(doseMinutes.size() > 1 ? 1.0f : 0.45f);
-            remove.setOnClickListener(view -> {
-                if (doseMinutes.size() <= 1) {
-                    Toast.makeText(this, "Keep at least one dose time.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                doseMinutes.remove(index);
-                refresh.run();
-            });
-            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(dp(96), dp(44));
-            removeParams.leftMargin = dp(8);
-            row.addView(remove, removeParams);
-
-            container.addView(row);
-        }
-    }
-
-    private void showDoseTimePicker(ArrayList<Integer> doseMinutes, int index, Runnable refresh) {
-        int existingMinutes = doseMinutes.get(index);
-        int hour = existingMinutes / 60;
-        int minute = existingMinutes % 60;
-        TimePickerDialog dialog = new TimePickerDialog(
-                this,
-                (view, selectedHour, selectedMinute) -> {
-                    int newMinutes = Medication.normalizeMinutes((selectedHour * 60) + selectedMinute);
-                    for (int i = 0; i < doseMinutes.size(); i++) {
-                        if (i != index && doseMinutes.get(i) == newMinutes) {
-                            Toast.makeText(this, "That dose time is already scheduled.", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                    }
-                    doseMinutes.set(index, newMinutes);
-                    refresh.run();
-                },
-                hour,
-                minute,
-                false
-        );
-        dialog.show();
-    }
-
-    private void renderRepeatReminderOptions(
-            LinearLayout container,
-            TextView repeatSummary,
-            int[] repeatReminderMinutes,
-            Runnable refresh
-    ) {
-        repeatReminderMinutes[0] = Math.max(0, Math.min(Medication.MAX_REPEAT_REMINDER_MINUTES, repeatReminderMinutes[0]));
-        repeatSummary.setText(Medication.repeatReminderLabel(repeatReminderMinutes[0]));
-        container.removeAllViews();
-
-        addRepeatReminderRow(container, repeatReminderMinutes, refresh, new int[]{0, 5, 10});
-        addRepeatReminderRow(container, repeatReminderMinutes, refresh, new int[]{30, 60, -1});
-    }
-
-    private void addRepeatReminderRow(
-            LinearLayout container,
-            int[] repeatReminderMinutes,
-            Runnable refresh,
-            int[] options
-    ) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(8), 0, 0);
-
-        for (int option : options) {
-            boolean selected = option < 0
-                    ? isCustomRepeatReminder(repeatReminderMinutes[0])
-                    : repeatReminderMinutes[0] == option;
-            Button optionButton = button(
-                    repeatReminderOptionLabel(option),
-                    selected ? Color.WHITE : COLOR_BLUE,
-                    selected ? COLOR_BLUE : COLOR_BLUE_SOFT
-            );
-            optionButton.setOnClickListener(view -> {
-                if (option < 0) {
-                    showCustomRepeatReminderDialog(repeatReminderMinutes, refresh);
-                    return;
-                }
-                repeatReminderMinutes[0] = option;
-                refresh.run();
-            });
-
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1);
-            if (row.getChildCount() > 0) {
-                params.leftMargin = dp(8);
-            }
-            row.addView(optionButton, params);
-        }
-
-        container.addView(row);
-    }
-
-    private void showCustomRepeatReminderDialog(int[] repeatReminderMinutes, Runnable refresh) {
-        String currentValue = isCustomRepeatReminder(repeatReminderMinutes[0])
-                ? String.valueOf(repeatReminderMinutes[0])
-                : "";
-        EditText minutesField = field("Minutes between alerts", currentValue, InputType.TYPE_CLASS_NUMBER);
-        minutesField.setSelectAllOnFocus(true);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Custom repeat")
-                .setView(minutesField)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                int minutes = parseInt(minutesField, 0);
-                if (minutes <= 0) {
-                    minutesField.setError("Enter minutes");
-                    return;
-                }
-                if (minutes > Medication.MAX_REPEAT_REMINDER_MINUTES) {
-                    minutesField.setError("Use 1440 minutes or less");
-                    return;
-                }
-
-                repeatReminderMinutes[0] = minutes;
-                refresh.run();
-                dialog.dismiss();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private boolean isCustomRepeatReminder(int minutes) {
-        return minutes > 0 && minutes != 5 && minutes != 10 && minutes != 30 && minutes != 60;
-    }
-
-    private String repeatReminderOptionLabel(int minutes) {
-        if (minutes < 0) {
-            return "Custom";
-        }
-        if (minutes == 0) {
-            return "Off";
-        }
-        if (minutes == 60) {
-            return "1 hr";
-        }
-        return minutes + " min";
-    }
-
     private void showMealTimePicker(Button timeButton, int[] mealMinutes, boolean[] customMealTime) {
         int hour = mealMinutes[0] / 60;
         int minute = mealMinutes[0] % 60;
@@ -2525,36 +2222,6 @@ public class MainActivity extends Activity {
                 false
         );
         dialog.show();
-    }
-
-    private int nextSuggestedDoseTime(List<Integer> doseMinutes) {
-        if (doseMinutes.isEmpty()) {
-            return 8 * 60;
-        }
-
-        ArrayList<Integer> sorted = new ArrayList<>(doseMinutes);
-        normalizeDoseTimes(sorted);
-        int candidate = Medication.normalizeMinutes(sorted.get(sorted.size() - 1) + (4 * 60));
-        for (int attempt = 0; attempt < Medication.MAX_DOSES_PER_DAY; attempt++) {
-            if (!sorted.contains(candidate)) {
-                return candidate;
-            }
-            candidate = Medication.normalizeMinutes(candidate + 60);
-        }
-        return 8 * 60;
-    }
-
-    private void normalizeDoseTimes(ArrayList<Integer> doseMinutes) {
-        if (doseMinutes.isEmpty()) {
-            doseMinutes.add(8 * 60);
-        }
-        for (int i = 0; i < doseMinutes.size(); i++) {
-            doseMinutes.set(i, Medication.normalizeMinutes(doseMinutes.get(i)));
-        }
-        doseMinutes.sort(Integer::compareTo);
-        while (doseMinutes.size() > Medication.MAX_DOSES_PER_DAY) {
-            doseMinutes.remove(doseMinutes.size() - 1);
-        }
     }
 
     private int minuteOfDay(long epochMillis) {
