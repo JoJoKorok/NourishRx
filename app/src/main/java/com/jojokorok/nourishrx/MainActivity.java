@@ -42,6 +42,7 @@ import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
+import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
@@ -97,6 +98,7 @@ public class MainActivity extends Activity {
     private NourishUi ui;
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
+    private MedicationScreens medicationScreens;
     private NutritionScreens nutritionScreens;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
@@ -124,6 +126,7 @@ public class MainActivity extends Activity {
                 REQUEST_BARCODE_CAMERA,
                 REQUEST_BARCODE_SCAN
         );
+        medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
@@ -416,9 +419,9 @@ public class MainActivity extends Activity {
         }
 
         if ("meds".equals(currentTab)) {
-            renderMedications();
+            medicationScreens.renderMedications(content);
         } else if ("stock".equals(currentTab)) {
-            renderInventory();
+            medicationScreens.renderInventory(content);
         } else {
             renderToday();
         }
@@ -426,6 +429,55 @@ public class MainActivity extends Activity {
 
     private boolean requirePremium(PremiumFeature feature) {
         return aboutPremiumFlow.requirePremium(feature);
+    }
+
+    private MedicationScreens.Callbacks medicationCallbacks() {
+        return new MedicationScreens.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String selectedProfileName() {
+                return MainActivity.this.selectedProfileName();
+            }
+
+            @Override
+            public View sectionTitle(String title, String subtitle) {
+                return MainActivity.this.sectionTitle(title, subtitle);
+            }
+
+            @Override
+            public void emptyState(String message, String action, View.OnClickListener listener) {
+                MainActivity.this.emptyState(message, action, listener);
+            }
+
+            @Override
+            public void showMedicationDialog(Medication medication) {
+                MainActivity.this.showMedicationDialog(medication);
+            }
+
+            @Override
+            public void toggleMedication(Medication medication) {
+                MainActivity.this.toggleMedication(medication);
+            }
+
+            @Override
+            public void confirmDelete(Medication medication) {
+                MainActivity.this.confirmDelete(medication);
+            }
+
+            @Override
+            public void adjustInventory(Medication medication, int delta) {
+                MainActivity.this.adjustInventory(medication, delta);
+            }
+
+            @Override
+            public void showInventoryDialog(Medication medication) {
+                MainActivity.this.showInventoryDialog(medication);
+            }
+        };
     }
 
     private NutritionScreens.Callbacks nutritionCallbacks() {
@@ -647,35 +699,6 @@ public class MainActivity extends Activity {
         footer.setGravity(Gravity.CENTER);
         footer.setPadding(0, dp(12), 0, 0);
         content.addView(footer);
-    }
-
-    private void renderMedications() {
-        List<Medication> medications = store.getAllMedications(currentProfileId);
-        content.addView(sectionTitle("Medications", selectedProfileName() + " has " + medications.size() + " saved"));
-
-        if (medications.isEmpty()) {
-            emptyState("Add names, doses, instructions, and reminders for " + selectedProfileName() + ".", "Add medication", view -> showMedicationDialog(null));
-            return;
-        }
-
-        for (Medication medication : medications) {
-            content.addView(medicationCard(medication));
-        }
-    }
-
-    private void renderInventory() {
-        List<Medication> medications = store.getAllMedications(currentProfileId);
-        long lowCount = medications.stream().filter(Medication::isLowStock).count();
-        content.addView(sectionTitle("Stock", selectedProfileName() + " has " + lowCount + " low stock"));
-
-        if (medications.isEmpty()) {
-            emptyState("Inventory for " + selectedProfileName() + " appears here after adding meds.", "Add medication", view -> showMedicationDialog(null));
-            return;
-        }
-
-        for (Medication medication : medications) {
-            content.addView(inventoryCard(medication));
-        }
     }
 
     private View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
@@ -1055,72 +1078,6 @@ public class MainActivity extends Activity {
             card.addView(lowStock);
         }
 
-        return card;
-    }
-
-    private View medicationCard(Medication medication) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(medication.name, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(medication.dosage, 14, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(medication.doseCountLabel() + " at " + medication.scheduleSummary(), 14, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(medication.repeatReminderLabel(), 13, COLOR_MUTED, Typeface.NORMAL));
-        if (!medication.instructions.isEmpty()) {
-            details.addView(text(medication.instructions, 14, COLOR_MUTED, Typeface.NORMAL));
-        }
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(medication.active ? "Active" : "Paused"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showMedicationDialog(medication));
-        actions.addView(edit, weightedActionParams());
-
-        Button toggle = button(medication.active ? "Pause" : "Resume", COLOR_GREEN, COLOR_GREEN_SOFT);
-        toggle.setOnClickListener(view -> toggleMedication(medication));
-        actions.addView(toggle, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDelete(medication));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private View inventoryCard(Medication medication) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(medication.name, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(medication.quantity + " remaining", 14, medication.isLowStock() ? COLOR_CORAL : COLOR_MUTED, Typeface.BOLD));
-        details.addView(text("Refill threshold: " + medication.refillThreshold, 13, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(medication.isLowStock() ? "Refill" : "OK"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button minus = button("-1", COLOR_CORAL, COLOR_CORAL_SOFT);
-        minus.setOnClickListener(view -> adjustInventory(medication, -1));
-        actions.addView(minus, weightedActionParams());
-
-        Button plus = button("+10", COLOR_GREEN, COLOR_GREEN_SOFT);
-        plus.setOnClickListener(view -> adjustInventory(medication, 10));
-        actions.addView(plus, weightedActionParams());
-
-        Button set = button("Set", COLOR_BLUE, COLOR_BLUE_SOFT);
-        set.setOnClickListener(view -> showInventoryDialog(medication));
-        actions.addView(set, weightedActionParams());
-        card.addView(actions);
         return card;
     }
 
