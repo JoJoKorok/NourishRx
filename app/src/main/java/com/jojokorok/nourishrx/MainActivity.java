@@ -41,6 +41,7 @@ import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
+import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
@@ -98,6 +99,7 @@ public class MainActivity extends Activity {
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
     private MedicationEditorFlow medicationEditorFlow;
+    private MedicationManagementFlow medicationManagementFlow;
     private MedicationScreens medicationScreens;
     private NutritionScreens nutritionScreens;
     private ProfileManagementFlow profileManagementFlow;
@@ -127,6 +129,7 @@ public class MainActivity extends Activity {
                 REQUEST_BARCODE_SCAN
         );
         medicationEditorFlow = new MedicationEditorFlow(this, store, ui, medicationEditorCallbacks());
+        medicationManagementFlow = new MedicationManagementFlow(this, store, ui, medicationManagementCallbacks());
         medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
@@ -446,6 +449,10 @@ public class MainActivity extends Activity {
         };
     }
 
+    private MedicationManagementFlow.Callbacks medicationManagementCallbacks() {
+        return this::renderShell;
+    }
+
     private MedicationScreens.Callbacks medicationCallbacks() {
         return new MedicationScreens.Callbacks() {
             @Override
@@ -475,22 +482,22 @@ public class MainActivity extends Activity {
 
             @Override
             public void toggleMedication(Medication medication) {
-                MainActivity.this.toggleMedication(medication);
+                medicationManagementFlow.toggleMedication(medication);
             }
 
             @Override
             public void confirmDelete(Medication medication) {
-                MainActivity.this.confirmDelete(medication);
+                medicationManagementFlow.confirmDelete(medication);
             }
 
             @Override
             public void adjustInventory(Medication medication, int delta) {
-                MainActivity.this.adjustInventory(medication, delta);
+                medicationManagementFlow.adjustInventory(medication, delta);
             }
 
             @Override
             public void showInventoryDialog(Medication medication) {
-                MainActivity.this.showInventoryDialog(medication);
+                medicationManagementFlow.showInventoryDialog(medication);
             }
         };
     }
@@ -1094,36 +1101,6 @@ public class MainActivity extends Activity {
         }
 
         return card;
-    }
-
-    private void showInventoryDialog(Medication medication) {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText quantityField = field("Current quantity", String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
-        EditText thresholdField = field("Refill threshold", String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
-        form.addView(quantityField);
-        form.addView(thresholdField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Update stock")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                medication.quantity = parseInt(quantityField, 0);
-                medication.refillThreshold = parseInt(thresholdField, 0);
-                store.saveMedication(medication);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
     }
 
     private void showLogFoodDialog(String presetName) {
@@ -2235,35 +2212,6 @@ public class MainActivity extends Activity {
                 .plusMinutes(Medication.normalizeMinutes(minutes))
                 .toInstant()
                 .toEpochMilli();
-    }
-
-    private void confirmDelete(Medication medication) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + medication.name + "?")
-                .setMessage("This removes the medication and its dose history from this phone.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    ReminderScheduler.cancel(this, medication.id);
-                    store.deleteMedication(medication.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void toggleMedication(Medication medication) {
-        medication.active = !medication.active;
-        store.saveMedication(medication);
-        if (medication.active) {
-            ReminderScheduler.scheduleNext(this, medication);
-        } else {
-            ReminderScheduler.cancel(this, medication.id);
-        }
-        renderShell();
-    }
-
-    private void adjustInventory(Medication medication, int delta) {
-        store.adjustInventory(medication.id, delta);
-        renderShell();
     }
 
     private void markDose(DoseRow row, String status) {
