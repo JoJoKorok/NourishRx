@@ -43,6 +43,7 @@ import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
 import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
+import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
@@ -57,10 +58,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
@@ -101,6 +100,7 @@ public class MainActivity extends Activity {
     private MedicationEditorFlow medicationEditorFlow;
     private MedicationManagementFlow medicationManagementFlow;
     private MedicationScreens medicationScreens;
+    private MedicationTodayFlow medicationTodayFlow;
     private NutritionScreens nutritionScreens;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
@@ -131,6 +131,7 @@ public class MainActivity extends Activity {
         medicationEditorFlow = new MedicationEditorFlow(this, store, ui, medicationEditorCallbacks());
         medicationManagementFlow = new MedicationManagementFlow(this, store, ui, medicationManagementCallbacks());
         medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
+        medicationTodayFlow = new MedicationTodayFlow(this, store, ui, zoneId, medicationTodayCallbacks());
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
@@ -313,7 +314,7 @@ public class MainActivity extends Activity {
             stats.addView(summaryPill(weights.isEmpty() ? "no weight" : formatPounds(weights.get(0).pounds) + " lb", COLOR_GOLD, COLOR_GOLD_SOFT));
         } else {
             List<Medication> medications = store.getAllMedications(currentProfileId);
-            int todayCount = doseRowsFor(LocalDate.now(zoneId)).size();
+            int todayCount = medicationTodayFlow.doseCountFor(LocalDate.now(zoneId));
             long lowCount = medications.stream().filter(Medication::isLowStock).count();
             stats.addView(summaryPill(plural(todayCount, "dose", "doses"), COLOR_GREEN, COLOR_GREEN_SOFT));
             stats.addView(summaryPill(plural(medications.size(), "med", "meds"), COLOR_BLUE, COLOR_BLUE_SOFT));
@@ -427,7 +428,7 @@ public class MainActivity extends Activity {
         } else if ("stock".equals(currentTab)) {
             medicationScreens.renderInventory(content);
         } else {
-            renderToday();
+            medicationTodayFlow.renderToday(content);
         }
     }
 
@@ -451,6 +452,40 @@ public class MainActivity extends Activity {
 
     private MedicationManagementFlow.Callbacks medicationManagementCallbacks() {
         return this::renderShell;
+    }
+
+    private MedicationTodayFlow.Callbacks medicationTodayCallbacks() {
+        return new MedicationTodayFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String selectedProfileName() {
+                return MainActivity.this.selectedProfileName();
+            }
+
+            @Override
+            public View sectionTitle(String title, String subtitle) {
+                return MainActivity.this.sectionTitle(title, subtitle);
+            }
+
+            @Override
+            public void emptyState(String message, String action, View.OnClickListener listener) {
+                MainActivity.this.emptyState(message, action, listener);
+            }
+
+            @Override
+            public void showMedicationEditor() {
+                medicationEditorFlow.show(null);
+            }
+
+            @Override
+            public void onDoseChanged() {
+                renderShell();
+            }
+        };
     }
 
     private MedicationScreens.Callbacks medicationCallbacks() {
@@ -694,33 +729,6 @@ public class MainActivity extends Activity {
                 MainActivity.this.renderShell();
             }
         };
-    }
-
-    private void renderToday() {
-        LocalDate today = LocalDate.now(zoneId);
-        List<DoseRow> rows = doseRowsFor(today);
-        String profileName = selectedProfileName();
-
-        content.addView(sectionTitle("Today", profileName + " has " + rows.size() + " scheduled doses"));
-
-        if (store.getActiveMedications(currentProfileId).isEmpty()) {
-            emptyState("Add the first medication for " + profileName + ".", "Add medication", view -> medicationEditorFlow.show(null));
-            return;
-        }
-
-        if (rows.isEmpty()) {
-            emptyState("No active doses are scheduled for " + profileName + " today.", "Add medication", view -> medicationEditorFlow.show(null));
-            return;
-        }
-
-        for (DoseRow row : rows) {
-            content.addView(doseCard(row));
-        }
-
-        TextView footer = text("Always follow your prescriber's directions.", 12, COLOR_MUTED, Typeface.NORMAL);
-        footer.setGravity(Gravity.CENTER);
-        footer.setPadding(0, dp(12), 0, 0);
-        content.addView(footer);
     }
 
     private View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
@@ -1057,49 +1065,6 @@ public class MainActivity extends Activity {
         delete.setOnClickListener(view -> confirmDeleteFood(food));
         actions.addView(delete, weightedActionParams());
         card.addView(actions);
-        return card;
-    }
-
-    private View doseCard(DoseRow row) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView time = timePill(formatTime(row.scheduledAt));
-        LinearLayout.LayoutParams timeParams = new LinearLayout.LayoutParams(dp(82), dp(50));
-        timeParams.rightMargin = dp(12);
-        top.addView(time, timeParams);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(row.medication.name, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(row.medication.dosage, 14, COLOR_MUTED, Typeface.NORMAL));
-        if (!row.medication.instructions.isEmpty()) {
-            details.addView(text(row.medication.instructions, 14, COLOR_MUTED, Typeface.NORMAL));
-        }
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(rowStatus(row)));
-        card.addView(top);
-
-        if (row.status == null) {
-            LinearLayout actions = actionRow();
-            Button taken = button("Taken", COLOR_GREEN, COLOR_GREEN_SOFT);
-            taken.setOnClickListener(view -> markDose(row, MedicationStore.STATUS_TAKEN));
-            actions.addView(taken, weightedActionParams());
-
-            Button skip = button("Skip", COLOR_CORAL, COLOR_CORAL_SOFT);
-            skip.setOnClickListener(view -> markDose(row, MedicationStore.STATUS_SKIPPED));
-            actions.addView(skip, weightedActionParams());
-            card.addView(actions);
-        }
-
-        if (row.medication.isLowStock()) {
-            TextView lowStock = text("Low stock: " + row.medication.quantity + " left", 13, COLOR_CORAL, Typeface.BOLD);
-            lowStock.setPadding(0, dp(8), 0, 0);
-            card.addView(lowStock);
-        }
-
         return card;
     }
 
@@ -2214,48 +2179,6 @@ public class MainActivity extends Activity {
                 .toEpochMilli();
     }
 
-    private void markDose(DoseRow row, String status) {
-        store.logDose(row.medication.id, row.scheduledAt, status);
-        if (MedicationStore.STATUS_TAKEN.equals(status)) {
-            store.adjustInventory(row.medication.id, -1);
-        }
-        ReminderScheduler.scheduleNext(this, store.getMedication(row.medication.id));
-        renderShell();
-    }
-
-    private List<DoseRow> doseRowsFor(LocalDate date) {
-        long start = date.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        Map<String, String> logs = store.getDoseLogsBetween(start, end);
-
-        List<DoseRow> rows = new ArrayList<>();
-        for (Medication medication : store.getActiveMedications(currentProfileId)) {
-            for (long scheduledAt : medication.scheduledDoseTimes(date, zoneId)) {
-                String status = logs.get(MedicationStore.doseKey(medication.id, scheduledAt));
-                rows.add(new DoseRow(medication, scheduledAt, status));
-            }
-        }
-        rows.sort(Comparator.comparingLong(row -> row.scheduledAt));
-        return rows;
-    }
-
-    private String rowStatus(DoseRow row) {
-        if (MedicationStore.STATUS_TAKEN.equals(row.status)) {
-            return "Taken";
-        }
-        if (MedicationStore.STATUS_SKIPPED.equals(row.status)) {
-            return "Skipped";
-        }
-        long now = System.currentTimeMillis();
-        if (row.scheduledAt < now - (15 * 60_000L)) {
-            return "Due";
-        }
-        if (row.scheduledAt <= now + (30 * 60_000L)) {
-            return "Next";
-        }
-        return "Upcoming";
-    }
-
     private long loadSelectedProfileId() {
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         long savedProfileId = preferences.getLong(PREF_SELECTED_PROFILE_ID, 0);
@@ -2573,10 +2496,6 @@ public class MainActivity extends Activity {
         return ui.statusBadge(label);
     }
 
-    private TextView timePill(String value) {
-        return ui.timePill(value);
-    }
-
     private TextView summaryPill(String label, int textColor, int background) {
         return ui.summaryPill(label, textColor, background);
     }
@@ -2716,15 +2635,4 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static final class DoseRow {
-        final Medication medication;
-        final long scheduledAt;
-        final String status;
-
-        DoseRow(Medication medication, long scheduledAt, String status) {
-            this.medication = medication;
-            this.scheduledAt = scheduledAt;
-            this.status = status;
-        }
-    }
 }
