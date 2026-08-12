@@ -28,7 +28,6 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.jojokorok.nourishrx.api.OpenFoodFactsClient;
 import com.jojokorok.nourishrx.data.MealFoodLog;
 import com.jojokorok.nourishrx.data.Medication;
 import com.jojokorok.nourishrx.data.MedicationStore;
@@ -46,6 +45,7 @@ import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
+import com.jojokorok.nourishrx.nutrition.OpenFoodFactsFlow;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
@@ -104,6 +104,7 @@ public class MainActivity extends Activity {
     private MedicationTodayFlow medicationTodayFlow;
     private NutritionFoodEditorFlow nutritionFoodEditorFlow;
     private NutritionScreens nutritionScreens;
+    private OpenFoodFactsFlow openFoodFactsFlow;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
     private LinearLayout root;
@@ -120,12 +121,14 @@ public class MainActivity extends Activity {
         store = new MedicationStore(this);
         premiumManager = new PremiumManager(this);
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
+        nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
+        openFoodFactsFlow = new OpenFoodFactsFlow(this, store, ui, openFoodFactsCallbacks());
         barcodeLookupFlow = new BarcodeLookupFlow(
                 this,
                 ui,
                 premiumManager,
                 () -> currentProfileId,
-                (dialog, body, food, sourceLine) -> renderOpenFoodFactsInspection(dialog, body, food, sourceLine),
+                openFoodFactsFlow::renderInspection,
                 aboutPremiumFlow::showPremiumOverviewDialog,
                 REQUEST_BARCODE_CAMERA,
                 REQUEST_BARCODE_SCAN
@@ -134,7 +137,6 @@ public class MainActivity extends Activity {
         medicationManagementFlow = new MedicationManagementFlow(this, store, ui, medicationManagementCallbacks());
         medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
         medicationTodayFlow = new MedicationTodayFlow(this, store, ui, zoneId, medicationTodayCallbacks());
-        nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
@@ -505,6 +507,25 @@ public class MainActivity extends Activity {
         };
     }
 
+    private OpenFoodFactsFlow.Callbacks openFoodFactsCallbacks() {
+        return new OpenFoodFactsFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void showFoodEditor(NutritionFood food) {
+                nutritionFoodEditorFlow.show(food);
+            }
+
+            @Override
+            public void onFoodSaved() {
+                renderShell();
+            }
+        };
+    }
+
     private MedicationScreens.Callbacks medicationCallbacks() {
         return new MedicationScreens.Callbacks() {
             @Override
@@ -663,7 +684,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void showOpenFoodFactsSearchDialog() {
-                MainActivity.this.showOpenFoodFactsSearchDialog();
+                openFoodFactsFlow.showSearchDialog();
             }
 
             @Override
@@ -805,6 +826,21 @@ public class MainActivity extends Activity {
         card.addView(nutritionFactRow("Iron", formatMg(totals.ironMg)));
         card.addView(nutritionFactRow("Potassium", formatMg(totals.potassiumMg)));
         return card;
+    }
+
+    private View nutritionFactRow(String label, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(6), 0, dp(6));
+
+        TextView labelView = text(label, 14, COLOR_INK, Typeface.BOLD);
+        row.addView(labelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView valueView = text(value, 14, COLOR_MUTED, Typeface.BOLD);
+        valueView.setGravity(Gravity.RIGHT);
+        row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        return row;
     }
 
     private View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
@@ -1512,299 +1548,6 @@ public class MainActivity extends Activity {
         });
 
         dialog.show();
-    }
-
-    private void showOpenFoodFactsSearchDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        EditText queryField = field("Search food name", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        form.addView(queryField);
-
-        Button search = button("Search OpenFoodFacts", COLOR_BLUE, COLOR_BLUE_SOFT);
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        searchParams.topMargin = dp(10);
-        form.addView(search, searchParams);
-
-        TextView status = text("Ready to search.", 13, COLOR_MUTED, Typeface.BOLD);
-        status.setPadding(0, dp(12), 0, dp(4));
-        form.addView(status);
-
-        LinearLayout results = new LinearLayout(this);
-        results.setOrientation(LinearLayout.VERTICAL);
-        form.addView(results);
-
-        Button loadMore = button("Load more", COLOR_GREEN, COLOR_GREEN_SOFT);
-        loadMore.setVisibility(View.GONE);
-        LinearLayout.LayoutParams loadMoreParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        loadMoreParams.topMargin = dp(12);
-        form.addView(loadMore, loadMoreParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Find food")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-
-        final int[] nextPage = {1};
-        final String[] activeQuery = {""};
-        search.setOnClickListener(view -> startOpenFoodFactsSearch(scrollView, queryField, search, loadMore, status, results, nextPage, activeQuery, true));
-        loadMore.setOnClickListener(view -> startOpenFoodFactsSearch(scrollView, queryField, search, loadMore, status, results, nextPage, activeQuery, false));
-
-        dialog.setOnShowListener(dialogInterface -> queryField.requestFocus());
-        dialog.show();
-    }
-
-    private void startOpenFoodFactsSearch(
-            ScrollView scrollView,
-            EditText queryField,
-            Button search,
-            Button loadMore,
-            TextView status,
-            LinearLayout results,
-            int[] nextPage,
-            String[] activeQuery,
-            boolean reset
-    ) {
-        String typedQuery = queryField.getText().toString().trim();
-        if (reset) {
-            activeQuery[0] = typedQuery;
-        }
-        String query = reset ? typedQuery : activeQuery[0];
-        if (query.length() < 2) {
-            queryField.setError("Enter a food name");
-            return;
-        }
-
-        int page = reset ? 1 : Math.max(1, nextPage[0]);
-        int previousScrollY = reset ? 0 : scrollView.getScrollY();
-        search.setEnabled(false);
-        loadMore.setEnabled(false);
-        status.setText(reset ? "Searching OpenFoodFacts..." : "Loading more results...");
-        if (reset) {
-            nextPage[0] = 1;
-            results.removeAllViews();
-            loadMore.setVisibility(View.GONE);
-        }
-
-        new Thread(() -> {
-            try {
-                List<OpenFoodFactsClient.SearchResult> found = new OpenFoodFactsClient().searchFoods(query, page);
-                runOnUiThread(() -> {
-                    search.setEnabled(true);
-                    boolean hasMore = found.size() >= OpenFoodFactsClient.PAGE_SIZE;
-                    if (found.isEmpty() && reset) {
-                        status.setText("No matching foods found.");
-                    } else if (found.isEmpty()) {
-                        status.setText("No more results.");
-                    } else {
-                        status.setText(reset
-                                ? plural(found.size(), "result", "results")
-                                : "Added " + plural(found.size(), "more result", "more results"));
-                        appendOpenFoodFactsResults(results, found);
-                        if (!reset) {
-                            scrollView.post(() -> scrollView.scrollTo(0, previousScrollY));
-                        }
-                    }
-                    nextPage[0] = page + 1;
-                    loadMore.setVisibility(hasMore ? View.VISIBLE : View.GONE);
-                    loadMore.setEnabled(hasMore);
-                });
-            } catch (Exception exception) {
-                runOnUiThread(() -> {
-                    search.setEnabled(true);
-                    loadMore.setEnabled(true);
-                    status.setText("Search failed. Check connection and try again.");
-                    Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-            }
-        }).start();
-    }
-
-    private void appendOpenFoodFactsResults(
-            LinearLayout container,
-            List<OpenFoodFactsClient.SearchResult> results
-    ) {
-        for (OpenFoodFactsClient.SearchResult result : results) {
-            container.addView(openFoodFactsResultCard(result));
-        }
-    }
-
-    private View openFoodFactsResultCard(OpenFoodFactsClient.SearchResult result) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(result.displayName(), 18, COLOR_INK, Typeface.BOLD));
-        details.addView(text(openFoodFactsResultSummary(result), 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text("Barcode " + result.code, 12, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(result.nutritionGrade.isEmpty() ? "OFF" : result.nutritionGrade.toUpperCase(Locale.US)));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button inspect = button("Inspect", COLOR_BLUE, COLOR_BLUE_SOFT);
-        inspect.setOnClickListener(view -> showOpenFoodFactsInspectDialog(result));
-        actions.addView(inspect, weightedActionParams());
-
-        Button add = button("Add", COLOR_GREEN, COLOR_GREEN_SOFT);
-        add.setOnClickListener(view -> importOpenFoodFactsFood(result, false));
-        actions.addView(add, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private String openFoodFactsResultSummary(OpenFoodFactsClient.SearchResult result) {
-        ArrayList<String> details = new ArrayList<>();
-        if (!result.brand.isEmpty()) {
-            details.add(result.brand);
-        }
-        if (!result.quantity.isEmpty()) {
-            details.add(result.quantity);
-        }
-        if (details.isEmpty()) {
-            return "OpenFoodFacts product";
-        }
-        return String.join(" - ", details);
-    }
-
-    private void importOpenFoodFactsFood(OpenFoodFactsClient.SearchResult result, boolean editBeforeSaving) {
-        Toast.makeText(this, "Loading food details...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(result.code, currentProfileId);
-                runOnUiThread(() -> {
-                    if (editBeforeSaving) {
-                        nutritionFoodEditorFlow.show(food);
-                        return;
-                    }
-                    store.saveNutritionFood(food);
-                    Toast.makeText(this, "Saved " + food.displayName(), Toast.LENGTH_SHORT).show();
-                    renderShell();
-                });
-            } catch (Exception exception) {
-                runOnUiThread(() -> Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show());
-            }
-        }).start();
-    }
-
-    private void showOpenFoodFactsInspectDialog(OpenFoodFactsClient.SearchResult result) {
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(18), dp(8), dp(18), 0);
-        body.addView(text("Loading nutrition facts...", 15, COLOR_MUTED, Typeface.BOLD));
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(body);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Inspect food")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-
-        dialog.show();
-
-        new Thread(() -> {
-            try {
-                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(result.code, currentProfileId);
-                runOnUiThread(() -> renderOpenFoodFactsInspection(dialog, body, food, result));
-            } catch (Exception exception) {
-                runOnUiThread(() -> {
-                    body.removeAllViews();
-                    body.addView(text("Could not load this food.", 16, COLOR_CORAL, Typeface.BOLD));
-                    body.addView(text(exception.getMessage(), 13, COLOR_MUTED, Typeface.NORMAL));
-                });
-            }
-        }).start();
-    }
-
-    private void renderOpenFoodFactsInspection(
-            AlertDialog dialog,
-            LinearLayout body,
-            NutritionFood food,
-            OpenFoodFactsClient.SearchResult result
-    ) {
-        renderOpenFoodFactsInspection(dialog, body, food, "OpenFoodFacts barcode " + result.code);
-    }
-
-    private void renderOpenFoodFactsInspection(
-            AlertDialog dialog,
-            LinearLayout body,
-            NutritionFood food,
-            String sourceLine
-    ) {
-        body.removeAllViews();
-        body.addView(text(food.displayName(), 21, COLOR_INK, Typeface.BOLD));
-        body.addView(text(sourceLine, 12, COLOR_MUTED, Typeface.NORMAL));
-        body.addView(fieldLabel("Serving"));
-        body.addView(nutritionFactRow("Serving size", food.servingSize.isEmpty() ? "Not listed" : food.servingSize));
-        body.addView(nutritionFactRow("Servings per container", food.servingsPerContainer > 0.0f ? formatServings(food.servingsPerContainer) : "Not listed"));
-
-        body.addView(fieldLabel("Nutrition facts"));
-        body.addView(nutritionFactRow("Calories", String.valueOf(food.calories)));
-        body.addView(nutritionFactRow("Total fat", formatGrams(food.totalFatGrams)));
-        body.addView(nutritionFactRow("Saturated fat", formatGrams(food.saturatedFatGrams)));
-        body.addView(nutritionFactRow("Trans fat", formatGrams(food.transFatGrams)));
-        body.addView(nutritionFactRow("Cholesterol", formatMg(food.cholesterolMg)));
-        body.addView(nutritionFactRow("Sodium", formatMg(food.sodiumMg)));
-        body.addView(nutritionFactRow("Total carbs", formatGrams(food.totalCarbsGrams)));
-        body.addView(nutritionFactRow("Fiber", formatGrams(food.fiberGrams)));
-        body.addView(nutritionFactRow("Total sugars", formatGrams(food.totalSugarsGrams)));
-        body.addView(nutritionFactRow("Added sugars", formatGrams(food.addedSugarsGrams)));
-        body.addView(nutritionFactRow("Protein", formatGrams(food.proteinGrams)));
-
-        body.addView(fieldLabel("Vitamins and minerals"));
-        body.addView(nutritionFactRow("Vitamin D", formatMcg(food.vitaminDMcg)));
-        body.addView(nutritionFactRow("Calcium", formatMg(food.calciumMg)));
-        body.addView(nutritionFactRow("Iron", formatMg(food.ironMg)));
-        body.addView(nutritionFactRow("Potassium", formatMg(food.potassiumMg)));
-
-        LinearLayout actions = actionRow();
-        Button save = button("Save food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        save.setOnClickListener(view -> {
-            store.saveNutritionFood(food);
-            dialog.dismiss();
-            Toast.makeText(this, "Saved " + food.displayName(), Toast.LENGTH_SHORT).show();
-            renderShell();
-        });
-        actions.addView(save, weightedActionParams());
-
-        Button edit = button("Edit first", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> {
-            dialog.dismiss();
-            nutritionFoodEditorFlow.show(food);
-        });
-        actions.addView(edit, weightedActionParams());
-        body.addView(actions);
-    }
-
-    private View nutritionFactRow(String label, String value) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(6), 0, dp(6));
-
-        TextView labelView = text(label, 14, COLOR_INK, Typeface.BOLD);
-        row.addView(labelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        TextView valueView = text(value, 14, COLOR_MUTED, Typeface.BOLD);
-        valueView.setGravity(Gravity.RIGHT);
-        row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        return row;
     }
 
     private void showMealDefaultsDialog() {
