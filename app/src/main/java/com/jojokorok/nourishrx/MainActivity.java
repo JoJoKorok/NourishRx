@@ -44,6 +44,7 @@ import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
 import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
@@ -101,6 +102,7 @@ public class MainActivity extends Activity {
     private MedicationManagementFlow medicationManagementFlow;
     private MedicationScreens medicationScreens;
     private MedicationTodayFlow medicationTodayFlow;
+    private NutritionFoodEditorFlow nutritionFoodEditorFlow;
     private NutritionScreens nutritionScreens;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
@@ -132,6 +134,7 @@ public class MainActivity extends Activity {
         medicationManagementFlow = new MedicationManagementFlow(this, store, ui, medicationManagementCallbacks());
         medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
         medicationTodayFlow = new MedicationTodayFlow(this, store, ui, zoneId, medicationTodayCallbacks());
+        nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
@@ -488,6 +491,20 @@ public class MainActivity extends Activity {
         };
     }
 
+    private NutritionFoodEditorFlow.Callbacks nutritionFoodEditorCallbacks() {
+        return new NutritionFoodEditorFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void onFoodChanged() {
+                renderShell();
+            }
+        };
+    }
+
     private MedicationScreens.Callbacks medicationCallbacks() {
         return new MedicationScreens.Callbacks() {
             @Override
@@ -641,7 +658,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void showFoodDialog() {
-                MainActivity.this.showFoodDialog(null);
+                nutritionFoodEditorFlow.show(null);
             }
 
             @Override
@@ -1058,11 +1075,11 @@ public class MainActivity extends Activity {
         actions.addView(log, weightedActionParams());
 
         Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showFoodDialog(food));
+        edit.setOnClickListener(view -> nutritionFoodEditorFlow.show(food));
         actions.addView(edit, weightedActionParams());
 
         Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteFood(food));
+        delete.setOnClickListener(view -> nutritionFoodEditorFlow.confirmDelete(food));
         actions.addView(delete, weightedActionParams());
         card.addView(actions);
         return card;
@@ -1076,7 +1093,7 @@ public class MainActivity extends Activity {
         List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
         if (foods.isEmpty()) {
             Toast.makeText(this, "Create a food before saving a meal.", Toast.LENGTH_SHORT).show();
-            showFoodDialog(null);
+            nutritionFoodEditorFlow.show(null);
             return;
         }
 
@@ -1400,7 +1417,7 @@ public class MainActivity extends Activity {
         List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
         if (foods.isEmpty()) {
             Toast.makeText(this, "Create a food before logging it.", Toast.LENGTH_SHORT).show();
-            showFoodDialog(null);
+            nutritionFoodEditorFlow.show(null);
             return;
         }
 
@@ -1488,141 +1505,6 @@ public class MainActivity extends Activity {
                         servings,
                         customMealTime[0] ? millisForMealTime(baseTime, mealMinutes[0]) : System.currentTimeMillis(),
                         food
-                ));
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showFoodDialog(NutritionFood existing) {
-        NutritionFood food = existing == null
-                ? new NutritionFood(
-                        0,
-                        currentProfileId,
-                        "",
-                        "",
-                        "",
-                        1.0f,
-                        0,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        System.currentTimeMillis()
-                )
-                : existing;
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        int decimalInput = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL;
-        EditText brandField = field("Brand", food.brand, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText nameField = field("Food name", food.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText servingSizeField = field("Serving size", food.servingSize, InputType.TYPE_CLASS_TEXT);
-        boolean prefillNutrition = existing != null;
-        EditText servingsPerContainerField = field("Servings per container", prefillNutrition ? formatFloatInput(food.servingsPerContainer) : "", decimalInput);
-        EditText caloriesField = field("Calories", prefillNutrition ? String.valueOf(food.calories) : "", InputType.TYPE_CLASS_NUMBER);
-        EditText totalFatField = field("Total fat (g)", prefillNutrition ? formatFloatInput(food.totalFatGrams) : "", decimalInput);
-        EditText saturatedFatField = field("Saturated fat (g)", prefillNutrition ? formatFloatInput(food.saturatedFatGrams) : "", decimalInput);
-        EditText transFatField = field("Trans fat (g)", prefillNutrition ? formatFloatInput(food.transFatGrams) : "", decimalInput);
-        EditText cholesterolField = field("Cholesterol (mg)", prefillNutrition ? formatFloatInput(food.cholesterolMg) : "", decimalInput);
-        EditText sodiumField = field("Sodium (mg)", prefillNutrition ? formatFloatInput(food.sodiumMg) : "", decimalInput);
-        EditText carbsField = field("Total carbs (g)", prefillNutrition ? formatFloatInput(food.totalCarbsGrams) : "", decimalInput);
-        EditText fiberField = field("Fiber (g)", prefillNutrition ? formatFloatInput(food.fiberGrams) : "", decimalInput);
-        EditText totalSugarsField = field("Total sugars (g)", prefillNutrition ? formatFloatInput(food.totalSugarsGrams) : "", decimalInput);
-        EditText addedSugarsField = field("Added sugars (g)", prefillNutrition ? formatFloatInput(food.addedSugarsGrams) : "", decimalInput);
-        EditText proteinField = field("Protein (g)", prefillNutrition ? formatFloatInput(food.proteinGrams) : "", decimalInput);
-        EditText vitaminDField = field("Vitamin D (mcg)", prefillNutrition ? formatFloatInput(food.vitaminDMcg) : "", decimalInput);
-        EditText calciumField = field("Calcium (mg)", prefillNutrition ? formatFloatInput(food.calciumMg) : "", decimalInput);
-        EditText ironField = field("Iron (mg)", prefillNutrition ? formatFloatInput(food.ironMg) : "", decimalInput);
-        EditText potassiumField = field("Potassium (mg)", prefillNutrition ? formatFloatInput(food.potassiumMg) : "", decimalInput);
-
-        form.addView(fieldLabel("Food"));
-        form.addView(brandField);
-        form.addView(nameField);
-        form.addView(fieldLabel("Serving"));
-        form.addView(servingSizeField);
-        form.addView(servingsPerContainerField);
-        form.addView(fieldLabel("Nutrition facts per serving"));
-        form.addView(caloriesField);
-        form.addView(totalFatField);
-        form.addView(saturatedFatField);
-        form.addView(transFatField);
-        form.addView(cholesterolField);
-        form.addView(sodiumField);
-        form.addView(carbsField);
-        form.addView(fiberField);
-        form.addView(totalSugarsField);
-        form.addView(addedSugarsField);
-        form.addView(proteinField);
-        form.addView(fieldLabel("Vitamins and minerals"));
-        form.addView(vitaminDField);
-        form.addView(calciumField);
-        form.addView(ironField);
-        form.addView(potassiumField);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Add food" : "Edit food")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-
-                String servingSize = servingSizeField.getText().toString().trim();
-                if (servingSize.isEmpty()) {
-                    servingSizeField.setError("Required");
-                    return;
-                }
-
-                store.saveNutritionFood(new NutritionFood(
-                        food.id,
-                        currentProfileId,
-                        brandField.getText().toString(),
-                        name,
-                        servingSize,
-                        parseFloat(servingsPerContainerField, 0.0f),
-                        parseInt(caloriesField, 0),
-                        parseFloat(totalFatField, 0.0f),
-                        parseFloat(saturatedFatField, 0.0f),
-                        parseFloat(transFatField, 0.0f),
-                        parseFloat(cholesterolField, 0.0f),
-                        parseFloat(sodiumField, 0.0f),
-                        parseFloat(carbsField, 0.0f),
-                        parseFloat(fiberField, 0.0f),
-                        parseFloat(totalSugarsField, 0.0f),
-                        parseFloat(addedSugarsField, 0.0f),
-                        parseFloat(proteinField, 0.0f),
-                        parseFloat(vitaminDField, 0.0f),
-                        parseFloat(calciumField, 0.0f),
-                        parseFloat(ironField, 0.0f),
-                        parseFloat(potassiumField, 0.0f),
-                        food.createdAt
                 ));
                 dialog.dismiss();
                 renderShell();
@@ -1806,7 +1688,7 @@ public class MainActivity extends Activity {
                 NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(result.code, currentProfileId);
                 runOnUiThread(() -> {
                     if (editBeforeSaving) {
-                        showFoodDialog(food);
+                        nutritionFoodEditorFlow.show(food);
                         return;
                     }
                     store.saveNutritionFood(food);
@@ -1904,7 +1786,7 @@ public class MainActivity extends Activity {
         Button edit = button("Edit first", COLOR_BLUE, COLOR_BLUE_SOFT);
         edit.setOnClickListener(view -> {
             dialog.dismiss();
-            showFoodDialog(food);
+            nutritionFoodEditorFlow.show(food);
         });
         actions.addView(edit, weightedActionParams());
         body.addView(actions);
@@ -2053,18 +1935,6 @@ public class MainActivity extends Activity {
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (dialog, which) -> {
                     store.deleteSavedMeal(savedMeal.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void confirmDeleteFood(NutritionFood food) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + food.displayName() + "?")
-                .setMessage("This removes the saved food and any meal logs that use it.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    store.deleteNutritionFood(food.id);
                     renderShell();
                 })
                 .show();
