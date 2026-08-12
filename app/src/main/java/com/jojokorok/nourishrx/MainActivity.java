@@ -12,13 +12,11 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -42,6 +40,7 @@ import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
+import com.jojokorok.nourishrx.nutrition.NutritionTrackingFlow;
 import com.jojokorok.nourishrx.nutrition.OpenFoodFactsFlow;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
@@ -51,7 +50,6 @@ import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 import com.jojokorok.nourishrx.ui.NourishColors;
 import com.jojokorok.nourishrx.ui.NourishUi;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -87,7 +85,6 @@ public class MainActivity extends Activity {
 
     private final ZoneId zoneId = ZoneId.systemDefault();
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault());
-    private final DateTimeFormatter shortDateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault());
 
     private MedicationStore store;
     private PremiumManager premiumManager;
@@ -101,6 +98,7 @@ public class MainActivity extends Activity {
     private NutritionFoodEditorFlow nutritionFoodEditorFlow;
     private NutritionMealFlow nutritionMealFlow;
     private NutritionScreens nutritionScreens;
+    private NutritionTrackingFlow nutritionTrackingFlow;
     private OpenFoodFactsFlow openFoodFactsFlow;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
@@ -120,6 +118,7 @@ public class MainActivity extends Activity {
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
         nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
+        nutritionTrackingFlow = new NutritionTrackingFlow(this, store, ui, zoneId, nutritionTrackingCallbacks());
         openFoodFactsFlow = new OpenFoodFactsFlow(this, store, ui, openFoodFactsCallbacks());
         barcodeLookupFlow = new BarcodeLookupFlow(
                 this,
@@ -530,6 +529,25 @@ public class MainActivity extends Activity {
         };
     }
 
+    private NutritionTrackingFlow.Callbacks nutritionTrackingCallbacks() {
+        return new NutritionTrackingFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void showLogFoodDialog(String mealName) {
+                nutritionMealFlow.showLogFoodDialog(mealName);
+            }
+
+            @Override
+            public void onTrackingChanged() {
+                renderShell();
+            }
+        };
+    }
+
     private OpenFoodFactsFlow.Callbacks openFoodFactsCallbacks() {
         return new OpenFoodFactsFlow.Callbacks() {
             @Override
@@ -662,17 +680,17 @@ public class MainActivity extends Activity {
 
             @Override
             public View defaultMealsCard(List<String> mealDefaults) {
-                return MainActivity.this.defaultMealsCard(mealDefaults);
+                return nutritionTrackingFlow.defaultMealsCard(mealDefaults);
             }
 
             @Override
             public View waterCard(int waterOunces, long startMillis, long endMillis) {
-                return MainActivity.this.waterCard(waterOunces, startMillis, endMillis);
+                return nutritionTrackingFlow.waterCard(waterOunces, startMillis, endMillis);
             }
 
             @Override
             public View weightCard(List<WeightEntry> weights) {
-                return MainActivity.this.weightCard(weights);
+                return nutritionTrackingFlow.weightCard(weights);
             }
 
             @Override
@@ -910,127 +928,6 @@ public class MainActivity extends Activity {
         return totals;
     }
 
-    private View defaultMealsCard(List<String> mealDefaults) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text("Default meals", 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(plural(mealDefaults.size(), "saved meal name", "saved meal names"), 13, COLOR_MUTED, Typeface.BOLD));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showMealDefaultsDialog());
-        top.addView(edit, compactButtonParams());
-        card.addView(top);
-
-        for (String mealName : mealDefaults) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(10), 0, 0);
-
-            TextView name = text(mealName, 15, COLOR_INK, Typeface.BOLD);
-            row.addView(name, new LinearLayout.LayoutParams(0, dp(42), 1));
-
-            Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-            log.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(mealName));
-            row.addView(log, new LinearLayout.LayoutParams(dp(88), dp(42)));
-            card.addView(row);
-        }
-        return card;
-    }
-
-    private View waterCard(int waterOunces, long startMillis, long endMillis) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text("Water", 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(waterOunces + " oz today", 14, COLOR_MUTED, Typeface.BOLD));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(waterOunces >= 64 ? "Hydrated" : "Track"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button addEight = button("+8 oz", COLOR_BLUE, COLOR_BLUE_SOFT);
-        addEight.setOnClickListener(view -> addWaterAndRefresh(8));
-        actions.addView(addEight, weightedActionParams());
-
-        Button addSixteen = button("+16 oz", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addSixteen.setOnClickListener(view -> addWaterAndRefresh(16));
-        actions.addView(addSixteen, weightedActionParams());
-
-        Button custom = button("Custom", COLOR_GOLD, COLOR_GOLD_SOFT);
-        custom.setOnClickListener(view -> showWaterDialog());
-        actions.addView(custom, weightedActionParams());
-        card.addView(actions);
-
-        if (waterOunces > 0) {
-            Button clear = button("Clear today", COLOR_CORAL, COLOR_CORAL_SOFT);
-            clear.setOnClickListener(view -> confirmClearWater(startMillis, endMillis));
-            LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(44)
-            );
-            clearParams.topMargin = dp(10);
-            card.addView(clear, clearParams);
-        }
-        return card;
-    }
-
-    private View weightCard(List<WeightEntry> weights) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text("Weight", 19, COLOR_INK, Typeface.BOLD));
-        if (weights.isEmpty()) {
-            details.addView(text("No weight logged yet", 14, COLOR_MUTED, Typeface.BOLD));
-        } else {
-            WeightEntry latest = weights.get(0);
-            details.addView(text(formatPounds(latest.pounds) + " lb latest", 14, COLOR_MUTED, Typeface.BOLD));
-            details.addView(text(formatShortDateTime(latest.loggedAt), 13, COLOR_MUTED, Typeface.NORMAL));
-        }
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        Button add = button("+ Weight", COLOR_GREEN, COLOR_GREEN_SOFT);
-        add.setOnClickListener(view -> showWeightDialog());
-        top.addView(add, compactButtonParams());
-        card.addView(top);
-
-        for (WeightEntry entry : weights) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(10), 0, 0);
-
-            LinearLayout label = new LinearLayout(this);
-            label.setOrientation(LinearLayout.VERTICAL);
-            label.addView(text(formatPounds(entry.pounds) + " lb", 15, COLOR_INK, Typeface.BOLD));
-            label.addView(text(formatShortDateTime(entry.loggedAt), 12, COLOR_MUTED, Typeface.NORMAL));
-            row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-            Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-            delete.setOnClickListener(view -> {
-                store.deleteWeightEntry(entry.id);
-                renderShell();
-            });
-            row.addView(delete, new LinearLayout.LayoutParams(dp(94), dp(40)));
-            card.addView(row);
-        }
-        return card;
-    }
-
     private View foodCard(NutritionFood food) {
         LinearLayout card = card();
         LinearLayout top = new LinearLayout(this);
@@ -1066,185 +963,6 @@ public class MainActivity extends Activity {
         actions.addView(delete, weightedActionParams());
         card.addView(actions);
         return card;
-    }
-
-    private void showMealDefaultsDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        LinearLayout defaultsList = new LinearLayout(this);
-        defaultsList.setOrientation(LinearLayout.VERTICAL);
-        renderMealDefaultRows(defaultsList, new ArrayList<>(store.getMealDefaults(currentProfileId)));
-        form.addView(defaultsList);
-
-        Button addDefault = button("+ Default meal", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addDefault.setOnClickListener(view -> {
-            ArrayList<String> names = mealDefaultNamesFrom(defaultsList);
-            names.add("Meal " + (names.size() + 1));
-            renderMealDefaultRows(defaultsList, names);
-        });
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(10);
-        form.addView(addDefault, addParams);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Default meals")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                ArrayList<String> names = mealDefaultNamesFrom(defaultsList);
-                if (names.isEmpty()) {
-                    Toast.makeText(this, "Keep at least one default meal.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                store.saveMealDefaults(currentProfileId, names);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void renderMealDefaultRows(LinearLayout container, ArrayList<String> mealNames) {
-        container.removeAllViews();
-        if (mealNames.isEmpty()) {
-            mealNames.add("Meal 1");
-        }
-
-        for (int i = 0; i < mealNames.size(); i++) {
-            int index = i;
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, 0);
-
-            EditText nameField = field("Meal name", mealNames.get(i), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-            row.addView(nameField, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
-            remove.setEnabled(mealNames.size() > 1);
-            remove.setAlpha(mealNames.size() > 1 ? 1.0f : 0.45f);
-            remove.setOnClickListener(view -> {
-                ArrayList<String> names = mealDefaultNamesFrom(container);
-                if (names.size() <= 1) {
-                    Toast.makeText(this, "Keep at least one default meal.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                names.remove(index);
-                renderMealDefaultRows(container, names);
-            });
-            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(dp(96), dp(48));
-            removeParams.leftMargin = dp(8);
-            row.addView(remove, removeParams);
-
-            container.addView(row);
-        }
-    }
-
-    private ArrayList<String> mealDefaultNamesFrom(LinearLayout container) {
-        ArrayList<String> names = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-            View child = container.getChildAt(i);
-            if (child instanceof LinearLayout) {
-                LinearLayout row = (LinearLayout) child;
-                if (row.getChildCount() > 0 && row.getChildAt(0) instanceof EditText) {
-                    String name = ((EditText) row.getChildAt(0)).getText().toString().trim();
-                    if (!name.isEmpty() && !names.contains(name)) {
-                        names.add(name);
-                    }
-                }
-            }
-        }
-        return names;
-    }
-
-    private void addWaterAndRefresh(int ounces) {
-        store.addWater(currentProfileId, ounces);
-        renderShell();
-    }
-
-    private void showWaterDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText ouncesField = field("Ounces", "", InputType.TYPE_CLASS_NUMBER);
-        form.addView(ouncesField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Add water")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Add", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button add = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            add.setOnClickListener(view -> {
-                int ounces = parseInt(ouncesField, 0);
-                if (ounces <= 0) {
-                    ouncesField.setError("Enter ounces");
-                    return;
-                }
-                store.addWater(currentProfileId, ounces);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void confirmClearWater(long startMillis, long endMillis) {
-        new AlertDialog.Builder(this)
-                .setTitle("Clear today's water?")
-                .setMessage("This removes all water entries for today.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Clear", (dialog, which) -> {
-                    store.clearWater(currentProfileId, startMillis, endMillis);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void showWeightDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText weightField = field("Weight in pounds", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        form.addView(weightField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Log weight")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                float pounds = parseFloat(weightField, 0.0f);
-                if (pounds <= 0.0f) {
-                    weightField.setError("Enter weight");
-                    return;
-                }
-                store.saveWeightEntry(new WeightEntry(0, currentProfileId, pounds, System.currentTimeMillis()));
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
     }
 
     private long loadSelectedProfileId() {
@@ -1327,10 +1045,6 @@ public class MainActivity extends Activity {
     private String selectedProfileName() {
         Profile profile = selectedProfile();
         return profile == null ? "Me" : profile.name;
-    }
-
-    private String formatShortDateTime(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).format(shortDateTimeFormatter);
     }
 
     private String formatGrams(float grams) {
@@ -1548,10 +1262,6 @@ public class MainActivity extends Activity {
         return ui.fieldLabel(value);
     }
 
-    private EditText field(String hint, String value, int inputType) {
-        return ui.field(hint, value, inputType);
-    }
-
     private Button button(String label, int textColor, int backgroundColor) {
         return ui.button(label, textColor, backgroundColor);
     }
@@ -1629,22 +1339,6 @@ public class MainActivity extends Activity {
             return heightDp;
         }
         return Math.round(heightDp * profilePhotoFlow.clampedAvatarAspectRatio(profile.avatarAspectRatio));
-    }
-
-    private int parseInt(EditText field, int fallback) {
-        try {
-            return Math.max(0, Integer.parseInt(field.getText().toString().trim()));
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
-    }
-
-    private float parseFloat(EditText field, float fallback) {
-        try {
-            return Math.max(0.0f, Float.parseFloat(field.getText().toString().trim()));
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
     }
 
     private int dp(float value) {
