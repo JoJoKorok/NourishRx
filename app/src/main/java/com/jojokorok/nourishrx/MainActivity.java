@@ -3,7 +3,6 @@ package com.jojokorok.nourishrx;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -23,8 +22,6 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.ArrayAdapter;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,7 +32,6 @@ import com.jojokorok.nourishrx.data.NutritionFood;
 import com.jojokorok.nourishrx.data.NutritionTotals;
 import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.SavedMeal;
-import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
@@ -44,6 +40,7 @@ import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.nutrition.OpenFoodFactsFlow;
 import com.jojokorok.nourishrx.premium.PremiumFeature;
@@ -90,7 +87,6 @@ public class MainActivity extends Activity {
 
     private final ZoneId zoneId = ZoneId.systemDefault();
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault());
-    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault());
     private final DateTimeFormatter shortDateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault());
 
     private MedicationStore store;
@@ -103,6 +99,7 @@ public class MainActivity extends Activity {
     private MedicationScreens medicationScreens;
     private MedicationTodayFlow medicationTodayFlow;
     private NutritionFoodEditorFlow nutritionFoodEditorFlow;
+    private NutritionMealFlow nutritionMealFlow;
     private NutritionScreens nutritionScreens;
     private OpenFoodFactsFlow openFoodFactsFlow;
     private ProfileManagementFlow profileManagementFlow;
@@ -122,6 +119,7 @@ public class MainActivity extends Activity {
         premiumManager = new PremiumManager(this);
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
+        nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
         openFoodFactsFlow = new OpenFoodFactsFlow(this, store, ui, openFoodFactsCallbacks());
         barcodeLookupFlow = new BarcodeLookupFlow(
                 this,
@@ -266,7 +264,7 @@ public class MainActivity extends Activity {
         Button add = button(nutritionMode ? "+ Log" : "+ Med", Color.WHITE, COLOR_GREEN);
         add.setOnClickListener(view -> {
             if (nutritionMode) {
-                showLogFoodDialog("");
+                nutritionMealFlow.showLogFoodDialog("");
             } else {
                 medicationEditorFlow.show(null);
             }
@@ -507,6 +505,31 @@ public class MainActivity extends Activity {
         };
     }
 
+    private NutritionMealFlow.Callbacks nutritionMealCallbacks() {
+        return new NutritionMealFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void showFoodEditor() {
+                nutritionFoodEditorFlow.show(null);
+            }
+
+            @Override
+            public void onNutritionChanged() {
+                renderShell();
+            }
+
+            @Override
+            public void onSavedMealLogged() {
+                currentTab = "nutrition_meals";
+                renderShell();
+            }
+        };
+    }
+
     private OpenFoodFactsFlow.Callbacks openFoodFactsCallbacks() {
         return new OpenFoodFactsFlow.Callbacks() {
             @Override
@@ -654,12 +677,12 @@ public class MainActivity extends Activity {
 
             @Override
             public View mealLogCard(MealFoodLog log) {
-                return MainActivity.this.mealLogCard(log);
+                return nutritionMealFlow.mealLogCard(log);
             }
 
             @Override
             public View savedMealCard(SavedMeal savedMeal) {
-                return MainActivity.this.savedMealCard(savedMeal);
+                return nutritionMealFlow.savedMealCard(savedMeal);
             }
 
             @Override
@@ -669,12 +692,12 @@ public class MainActivity extends Activity {
 
             @Override
             public void showLogFoodDialog(String mealName) {
-                MainActivity.this.showLogFoodDialog(mealName);
+                nutritionMealFlow.showLogFoodDialog(mealName);
             }
 
             @Override
             public void showSavedMealDialog() {
-                MainActivity.this.showSavedMealDialog(null);
+                nutritionMealFlow.showSavedMealDialog(null);
             }
 
             @Override
@@ -784,7 +807,7 @@ public class MainActivity extends Activity {
         card.addView(macros);
 
         Button addMeal = button("+ Log food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addMeal.setOnClickListener(view -> showLogFoodDialog(""));
+        addMeal.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(""));
         LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -869,7 +892,7 @@ public class MainActivity extends Activity {
         card.addView(macros);
 
         Button logHere = button("+ Log here", COLOR_GREEN, COLOR_GREEN_SOFT);
-        logHere.setOnClickListener(view -> showLogFoodDialog(mealName));
+        logHere.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(mealName));
         LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -914,7 +937,7 @@ public class MainActivity extends Activity {
             row.addView(name, new LinearLayout.LayoutParams(0, dp(42), 1));
 
             Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-            log.setOnClickListener(view -> showLogFoodDialog(mealName));
+            log.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(mealName));
             row.addView(log, new LinearLayout.LayoutParams(dp(88), dp(42)));
             card.addView(row);
         }
@@ -1008,82 +1031,6 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private View mealLogCard(MealFoodLog log) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        NutritionFood food = log.food;
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(log.mealName, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text((food == null ? "Saved food" : food.displayName()) +
-                " - " + formatServings(log.servings) + " serving" + (Math.abs(log.servings - 1.0f) < 0.05f ? "" : "s"),
-                13,
-                COLOR_MUTED,
-                Typeface.BOLD));
-        details.addView(text(log.calories() + " cal - " +
-                formatGrams(log.proteinGrams()) + " protein - " +
-                formatGrams(log.totalCarbsGrams()) + " carbs - " +
-                formatGrams(log.totalFatGrams()) + " fat", 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(formatTime(log.eatenAt), 12, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(log.calories() > 0 ? log.calories() + " cal" : "Food"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showLogFoodDialog(log));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteMealLog(log));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private View savedMealCard(SavedMeal savedMeal) {
-        LinearLayout card = card();
-        List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
-        NutritionTotals totals = new NutritionTotals();
-        for (SavedMealItem item : items) {
-            totals.addFood(item.food, item.servings);
-        }
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(savedMeal.name, 19, COLOR_INK, Typeface.BOLD));
-        if (!savedMeal.notes.isEmpty()) {
-            details.addView(text(savedMeal.notes, 13, COLOR_MUTED, Typeface.BOLD));
-        }
-        details.addView(text(savedMealItemsSummary(items), 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-        log.setOnClickListener(view -> showLogSavedMealDialog(savedMeal));
-        actions.addView(log, weightedActionParams());
-
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showSavedMealDialog(savedMeal));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteSavedMeal(savedMeal));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
     private View foodCard(NutritionFood food) {
         LinearLayout card = card();
         LinearLayout top = new LinearLayout(this);
@@ -1107,7 +1054,7 @@ public class MainActivity extends Activity {
 
         LinearLayout actions = actionRow();
         Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-        log.setOnClickListener(view -> showLogFoodDialog("", food.id));
+        log.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog("", food.id));
         actions.addView(log, weightedActionParams());
 
         Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
@@ -1119,435 +1066,6 @@ public class MainActivity extends Activity {
         actions.addView(delete, weightedActionParams());
         card.addView(actions);
         return card;
-    }
-
-    private void showLogFoodDialog(String presetName) {
-        showLogFoodDialog(null, presetName, 0);
-    }
-
-    private void showSavedMealDialog(SavedMeal existing) {
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-        if (foods.isEmpty()) {
-            Toast.makeText(this, "Create a food before saving a meal.", Toast.LENGTH_SHORT).show();
-            nutritionFoodEditorFlow.show(null);
-            return;
-        }
-
-        SavedMeal savedMeal = existing == null
-                ? new SavedMeal(0, currentProfileId, "", "", System.currentTimeMillis())
-                : existing;
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        EditText nameField = field("Saved meal name", savedMeal.name.equals("Saved meal") && existing == null ? "" : savedMeal.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText notesField = field("Notes", savedMeal.notes, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        form.addView(fieldLabel("Meal"));
-        form.addView(nameField);
-        form.addView(notesField);
-
-        LinearLayout itemsContainer = new LinearLayout(this);
-        itemsContainer.setOrientation(LinearLayout.VERTICAL);
-        ArrayList<SavedMealItemDraft> drafts = savedMealDraftsFromItems(existing == null
-                ? new ArrayList<>()
-                : store.getSavedMealItems(existing.id));
-        if (drafts.isEmpty()) {
-            drafts.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
-        }
-        renderSavedMealItemRows(itemsContainer, foods, drafts);
-
-        form.addView(fieldLabel("Foods"));
-        form.addView(itemsContainer);
-
-        Button addFood = button("+ Food item", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addFood.setOnClickListener(view -> {
-            ArrayList<SavedMealItemDraft> updated = savedMealDraftsFromRows(itemsContainer, foods);
-            updated.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
-            renderSavedMealItemRows(itemsContainer, foods, updated);
-        });
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(10);
-        form.addView(addFood, addParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Create saved meal" : "Edit saved meal")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-
-                ArrayList<SavedMealItem> items = savedMealItemsFromRows(itemsContainer, foods);
-                if (items == null) {
-                    return;
-                }
-                if (items.isEmpty()) {
-                    Toast.makeText(this, "Add at least one food.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                store.saveSavedMeal(new SavedMeal(
-                        savedMeal.id,
-                        currentProfileId,
-                        name,
-                        notesField.getText().toString(),
-                        savedMeal.createdAt
-                ), items);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showLogSavedMealDialog(SavedMeal savedMeal) {
-        List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
-        if (items.isEmpty()) {
-            Toast.makeText(this, "Add foods before logging this saved meal.", Toast.LENGTH_SHORT).show();
-            showSavedMealDialog(savedMeal);
-            return;
-        }
-
-        NutritionTotals totals = new NutritionTotals();
-        for (SavedMealItem item : items) {
-            totals.addFood(item.food, item.servings);
-        }
-
-        long baseTime = System.currentTimeMillis();
-        String defaultMealName = defaultMealName();
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        form.addView(fieldLabel("Saved meal"));
-        form.addView(text(savedMeal.name, 18, COLOR_INK, Typeface.BOLD));
-        form.addView(text(savedMealItemsSummary(items), 13, COLOR_MUTED, Typeface.NORMAL));
-        form.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.BOLD));
-
-        EditText mealNameField = field("Meal name", defaultMealName, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-
-        final boolean[] customMealTime = {false};
-        final int[] mealMinutes = {minuteOfDay(baseTime)};
-        LinearLayout timeActions = actionRow();
-        Button timeButton = button("Time: now", COLOR_BLUE, COLOR_BLUE_SOFT);
-        timeButton.setOnClickListener(view -> showMealTimePicker(timeButton, mealMinutes, customMealTime));
-        timeActions.addView(timeButton, weightedActionParams());
-
-        Button nowButton = button("Use now", COLOR_GREEN, COLOR_GREEN_SOFT);
-        nowButton.setOnClickListener(view -> {
-            customMealTime[0] = false;
-            mealMinutes[0] = minuteOfDay(System.currentTimeMillis());
-            timeButton.setText("Time: now");
-        });
-        timeActions.addView(nowButton, weightedActionParams());
-
-        form.addView(fieldLabel("Meal log"));
-        form.addView(mealNameField);
-        form.addView(fieldLabel("Time eaten"));
-        form.addView(timeActions);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Log saved meal")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Log", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String mealName = mealNameField.getText().toString().trim();
-                if (mealName.isEmpty()) {
-                    mealNameField.setError("Required");
-                    return;
-                }
-
-                long eatenAt = customMealTime[0]
-                        ? millisForMealTime(baseTime, mealMinutes[0])
-                        : System.currentTimeMillis();
-                for (SavedMealItem item : items) {
-                    if (item.food == null) {
-                        continue;
-                    }
-                    store.saveMealFoodLog(new MealFoodLog(
-                            0,
-                            currentProfileId,
-                            item.food.id,
-                            mealName,
-                            item.servings,
-                            eatenAt,
-                            item.food
-                    ));
-                }
-
-                Toast.makeText(this, "Logged " + savedMeal.name, Toast.LENGTH_SHORT).show();
-                currentTab = "nutrition_meals";
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void renderSavedMealItemRows(
-            LinearLayout container,
-            List<NutritionFood> foods,
-            ArrayList<SavedMealItemDraft> drafts
-    ) {
-        container.removeAllViews();
-        if (drafts.isEmpty()) {
-            drafts.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
-        }
-
-        ArrayList<String> foodNames = new ArrayList<>();
-        for (NutritionFood food : foods) {
-            foodNames.add(food.displayName());
-        }
-
-        for (int i = 0; i < drafts.size(); i++) {
-            int index = i;
-            SavedMealItemDraft draft = drafts.get(i);
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(dp(12), dp(10), dp(12), dp(12));
-            row.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            rowParams.topMargin = dp(8);
-            row.setLayoutParams(rowParams);
-
-            Spinner foodSpinner = new Spinner(this);
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, foodNames);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            foodSpinner.setAdapter(adapter);
-            foodSpinner.setSelection(savedMealFoodIndex(foods, draft.foodId));
-            foodSpinner.setPadding(dp(10), 0, dp(10), 0);
-            foodSpinner.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-            LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(48)
-            );
-            row.addView(foodSpinner, spinnerParams);
-
-            EditText servingsField = field("Servings used", draft.servings > 0.0f ? formatFloatInput(draft.servings) : "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-            row.addView(servingsField);
-
-            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
-            remove.setEnabled(drafts.size() > 1);
-            remove.setAlpha(drafts.size() > 1 ? 1.0f : 0.45f);
-            remove.setOnClickListener(view -> {
-                ArrayList<SavedMealItemDraft> updated = savedMealDraftsFromRows(container, foods);
-                if (updated.size() <= 1) {
-                    Toast.makeText(this, "Keep at least one food.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                updated.remove(index);
-                renderSavedMealItemRows(container, foods, updated);
-            });
-            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(42)
-            );
-            removeParams.topMargin = dp(8);
-            row.addView(remove, removeParams);
-
-            row.setTag(new SavedMealItemRowControls(foodSpinner, servingsField));
-            container.addView(row);
-        }
-    }
-
-    private ArrayList<SavedMealItemDraft> savedMealDraftsFromItems(List<SavedMealItem> items) {
-        ArrayList<SavedMealItemDraft> drafts = new ArrayList<>();
-        for (SavedMealItem item : items) {
-            long foodId = item.foodId > 0 ? item.foodId : item.food == null ? 0 : item.food.id;
-            if (foodId > 0) {
-                drafts.add(new SavedMealItemDraft(foodId, item.servings));
-            }
-        }
-        return drafts;
-    }
-
-    private ArrayList<SavedMealItemDraft> savedMealDraftsFromRows(LinearLayout container, List<NutritionFood> foods) {
-        ArrayList<SavedMealItemDraft> drafts = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-            View child = container.getChildAt(i);
-            if (!(child.getTag() instanceof SavedMealItemRowControls)) {
-                continue;
-            }
-            SavedMealItemRowControls controls = (SavedMealItemRowControls) child.getTag();
-            int selectedIndex = controls.foodSpinner.getSelectedItemPosition();
-            if (selectedIndex < 0 || selectedIndex >= foods.size()) {
-                continue;
-            }
-            drafts.add(new SavedMealItemDraft(
-                    foods.get(selectedIndex).id,
-                    parseFloat(controls.servingsField, 0.0f)
-            ));
-        }
-        return drafts;
-    }
-
-    private ArrayList<SavedMealItem> savedMealItemsFromRows(LinearLayout container, List<NutritionFood> foods) {
-        ArrayList<SavedMealItem> items = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-            View child = container.getChildAt(i);
-            if (!(child.getTag() instanceof SavedMealItemRowControls)) {
-                continue;
-            }
-            SavedMealItemRowControls controls = (SavedMealItemRowControls) child.getTag();
-            int selectedIndex = controls.foodSpinner.getSelectedItemPosition();
-            if (selectedIndex < 0 || selectedIndex >= foods.size()) {
-                continue;
-            }
-            float servings = parseFloat(controls.servingsField, 0.0f);
-            if (servings <= 0.0f) {
-                controls.servingsField.setError("Enter servings");
-                return null;
-            }
-
-            NutritionFood food = foods.get(selectedIndex);
-            items.add(new SavedMealItem(0, 0, food.id, servings, items.size(), food));
-        }
-        return items;
-    }
-
-    private int savedMealFoodIndex(List<NutritionFood> foods, long foodId) {
-        for (int i = 0; i < foods.size(); i++) {
-            if (foods.get(i).id == foodId) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    private void showLogFoodDialog(String presetName, long selectedFoodId) {
-        showLogFoodDialog(null, presetName, selectedFoodId);
-    }
-
-    private void showLogFoodDialog(MealFoodLog existing) {
-        showLogFoodDialog(existing, existing == null ? "" : existing.mealName, existing == null ? 0 : existing.foodId);
-    }
-
-    private void showLogFoodDialog(MealFoodLog existing, String presetName, long selectedFoodId) {
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-        if (foods.isEmpty()) {
-            Toast.makeText(this, "Create a food before logging it.", Toast.LENGTH_SHORT).show();
-            nutritionFoodEditorFlow.show(null);
-            return;
-        }
-
-        long targetFoodId = existing == null ? selectedFoodId : existing.foodId;
-        int selectedIndex = 0;
-        ArrayList<String> foodNames = new ArrayList<>();
-        for (int i = 0; i < foods.size(); i++) {
-            NutritionFood food = foods.get(i);
-            foodNames.add(food.displayName());
-            if (food.id == targetFoodId) {
-                selectedIndex = i;
-            }
-        }
-
-        long baseTime = existing == null ? System.currentTimeMillis() : existing.eatenAt;
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        form.addView(fieldLabel("Food"));
-        Spinner foodSpinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, foodNames);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        foodSpinner.setAdapter(adapter);
-        foodSpinner.setSelection(selectedIndex);
-        foodSpinner.setPadding(dp(10), 0, dp(10), 0);
-        foodSpinner.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(48)
-        );
-        spinnerParams.topMargin = dp(8);
-        form.addView(foodSpinner, spinnerParams);
-
-        EditText mealNameField = field("Meal name", presetName, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText servingsField = field("Servings eaten", existing == null ? "" : formatFloatInput(existing.servings), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-
-        final boolean[] customMealTime = {existing != null};
-        final int[] mealMinutes = {minuteOfDay(baseTime)};
-        LinearLayout timeActions = actionRow();
-        Button timeButton = button(customMealTime[0] ? "Ate at " + Medication.formatMinutes(mealMinutes[0]) : "Time: now", COLOR_BLUE, COLOR_BLUE_SOFT);
-        timeButton.setOnClickListener(view -> showMealTimePicker(timeButton, mealMinutes, customMealTime));
-        timeActions.addView(timeButton, weightedActionParams());
-
-        Button nowButton = button("Use now", COLOR_GREEN, COLOR_GREEN_SOFT);
-        nowButton.setOnClickListener(view -> {
-            customMealTime[0] = false;
-            mealMinutes[0] = minuteOfDay(System.currentTimeMillis());
-            timeButton.setText("Time: now");
-        });
-        timeActions.addView(nowButton, weightedActionParams());
-
-        form.addView(mealNameField);
-        form.addView(servingsField);
-        form.addView(fieldLabel("Time eaten"));
-        form.addView(timeActions);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Log food" : "Edit food log")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                float servings = parseFloat(servingsField, 0.0f);
-                if (servings <= 0.0f) {
-                    servingsField.setError("Enter servings");
-                    return;
-                }
-
-                NutritionFood food = foods.get(foodSpinner.getSelectedItemPosition());
-                String mealName = mealNameField.getText().toString().trim();
-                if (mealName.isEmpty()) {
-                    mealName = "Meal";
-                }
-
-                store.saveMealFoodLog(new MealFoodLog(
-                        existing == null ? 0 : existing.id,
-                        currentProfileId,
-                        food.id,
-                        mealName,
-                        servings,
-                        customMealTime[0] ? millisForMealTime(baseTime, mealMinutes[0]) : System.currentTimeMillis(),
-                        food
-                ));
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
     }
 
     private void showMealDefaultsDialog() {
@@ -1650,39 +1168,6 @@ public class MainActivity extends Activity {
         return names;
     }
 
-    private String defaultMealName() {
-        for (String name : store.getMealDefaults(currentProfileId)) {
-            if (name != null && !name.trim().isEmpty()) {
-                return name.trim();
-            }
-        }
-        return "Meal";
-    }
-
-    private void confirmDeleteMealLog(MealFoodLog log) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete this food log?")
-                .setMessage("This removes the entry from the meal log.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    store.deleteMealFoodLog(log.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void confirmDeleteSavedMeal(SavedMeal savedMeal) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + savedMeal.name + "?")
-                .setMessage("This removes the saved meal combination.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    store.deleteSavedMeal(savedMeal.id);
-                    renderShell();
-                })
-                .show();
-    }
-
     private void addWaterAndRefresh(int ounces) {
         store.addWater(currentProfileId, ounces);
         renderShell();
@@ -1760,36 +1245,6 @@ public class MainActivity extends Activity {
         });
 
         dialog.show();
-    }
-
-    private void showMealTimePicker(Button timeButton, int[] mealMinutes, boolean[] customMealTime) {
-        int hour = mealMinutes[0] / 60;
-        int minute = mealMinutes[0] % 60;
-        TimePickerDialog dialog = new TimePickerDialog(
-                this,
-                (view, selectedHour, selectedMinute) -> {
-                    mealMinutes[0] = Medication.normalizeMinutes((selectedHour * 60) + selectedMinute);
-                    customMealTime[0] = true;
-                    timeButton.setText("Ate at " + Medication.formatMinutes(mealMinutes[0]));
-                },
-                hour,
-                minute,
-                false
-        );
-        dialog.show();
-    }
-
-    private int minuteOfDay(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).getHour() * 60 +
-                Instant.ofEpochMilli(epochMillis).atZone(zoneId).getMinute();
-    }
-
-    private long millisForMealTime(long baseMillis, int minutes) {
-        LocalDate date = Instant.ofEpochMilli(baseMillis).atZone(zoneId).toLocalDate();
-        return date.atStartOfDay(zoneId)
-                .plusMinutes(Medication.normalizeMinutes(minutes))
-                .toInstant()
-                .toEpochMilli();
     }
 
     private long loadSelectedProfileId() {
@@ -1874,10 +1329,6 @@ public class MainActivity extends Activity {
         return profile == null ? "Me" : profile.name;
     }
 
-    private String formatTime(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).format(timeFormatter);
-    }
-
     private String formatShortDateTime(long epochMillis) {
         return Instant.ofEpochMilli(epochMillis).atZone(zoneId).format(shortDateTimeFormatter);
     }
@@ -1894,10 +1345,6 @@ public class MainActivity extends Activity {
         return formatFloatInput(value) + "mcg";
     }
 
-    private String formatServings(float servings) {
-        return formatFloatInput(servings);
-    }
-
     private String formatPounds(float pounds) {
         return formatFloatInput(pounds);
     }
@@ -1907,30 +1354,6 @@ public class MainActivity extends Activity {
                 formatGrams(totals.proteinGrams) + " protein - " +
                 formatGrams(totals.totalCarbsGrams) + " carbs - " +
                 formatGrams(totals.totalFatGrams) + " fat";
-    }
-
-    private String savedMealItemsSummary(List<SavedMealItem> items) {
-        if (items.isEmpty()) {
-            return "No foods added";
-        }
-
-        StringBuilder summary = new StringBuilder();
-        int visibleCount = Math.min(2, items.size());
-        for (int i = 0; i < visibleCount; i++) {
-            SavedMealItem item = items.get(i);
-            if (i > 0) {
-                summary.append(", ");
-            }
-            summary.append(item.food == null ? "Food" : item.food.displayName());
-            summary.append(" x");
-            summary.append(formatServings(item.servings));
-        }
-        if (items.size() > visibleCount) {
-            summary.append(" + ");
-            summary.append(items.size() - visibleCount);
-            summary.append(" more");
-        }
-        return summary.toString();
     }
 
     private ArrayList<String> mealNamesForLogs(List<MealFoodLog> logs) {
@@ -2226,26 +1649,6 @@ public class MainActivity extends Activity {
 
     private int dp(float value) {
         return ui.dp(value);
-    }
-
-    private static final class SavedMealItemDraft {
-        final long foodId;
-        final float servings;
-
-        SavedMealItemDraft(long foodId, float servings) {
-            this.foodId = foodId;
-            this.servings = servings;
-        }
-    }
-
-    private static final class SavedMealItemRowControls {
-        final Spinner foodSpinner;
-        final EditText servingsField;
-
-        SavedMealItemRowControls(Spinner foodSpinner, EditText servingsField) {
-            this.foodSpinner = foodSpinner;
-            this.servingsField = servingsField;
-        }
     }
 
 }
