@@ -1,6 +1,5 @@
 package com.jojokorok.nourishrx;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -10,7 +9,6 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -19,7 +17,6 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.jojokorok.nourishrx.data.MealFoodLog;
 import com.jojokorok.nourishrx.data.Medication;
@@ -44,6 +41,7 @@ import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
 import com.jojokorok.nourishrx.profiles.ProfilePhotoFlow;
+import com.jojokorok.nourishrx.reminders.ReminderAlertsFlow;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
 import com.jojokorok.nourishrx.ui.AppShellFlow;
 import com.jojokorok.nourishrx.ui.NourishColors;
@@ -96,6 +94,7 @@ public class MainActivity extends Activity {
     private OpenFoodFactsFlow openFoodFactsFlow;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
+    private ReminderAlertsFlow reminderAlertsFlow;
     private LinearLayout content;
     private String currentTab = "today";
     private String currentMode = MODE_MEDICATION;
@@ -130,13 +129,13 @@ public class MainActivity extends Activity {
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
+        reminderAlertsFlow = new ReminderAlertsFlow(this, REQUEST_NOTIFICATIONS, this::renderShell);
         appShellFlow = new AppShellFlow(this, store, ui, zoneId, appShellCallbacks());
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
         applyReminderProfileIntent(getIntent());
-        ReminderScheduler.ensureNotificationChannel(this);
-        ReminderScheduler.scheduleAll(this);
+        reminderAlertsFlow.initialize();
         renderShell();
     }
 
@@ -154,7 +153,7 @@ public class MainActivity extends Activity {
         super.onResume();
         if (store != null) {
             currentProfileId = resolveProfileId(currentProfileId);
-            ReminderScheduler.scheduleAll(this);
+            reminderAlertsFlow.refreshSchedules();
             renderShell();
         }
     }
@@ -163,13 +162,9 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_NOTIFICATIONS) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Notification reminders are enabled.", Toast.LENGTH_SHORT).show();
-                handleAlertsTap();
-            } else {
-                Toast.makeText(this, "Notifications are off. Schedules still stay saved.", Toast.LENGTH_LONG).show();
-            }
-            renderShell();
+            reminderAlertsFlow.handleNotificationPermissionResult(
+                    grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            );
         } else if (requestCode == REQUEST_BARCODE_CAMERA) {
             barcodeLookupFlow.handleCameraPermissionResult(
                     grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
@@ -269,12 +264,12 @@ public class MainActivity extends Activity {
 
             @Override
             public String alertsLabel() {
-                return MainActivity.this.alertsLabel();
+                return reminderAlertsFlow.alertsLabel();
             }
 
             @Override
             public int alertColor() {
-                return MainActivity.this.alertColor();
+                return reminderAlertsFlow.alertColor();
             }
 
             @Override
@@ -310,7 +305,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void handleAlertsTap() {
-                MainActivity.this.handleAlertsTap();
+                reminderAlertsFlow.handleAlertsTap();
             }
         };
     }
@@ -998,48 +993,6 @@ public class MainActivity extends Activity {
         valueView.setPadding(0, dp(2), 0, 0);
         line.addView(valueView);
         return line;
-    }
-
-    private void handleAlertsTap() {
-        if (needsNotificationPermission()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
-            }
-            return;
-        }
-
-        if (!ReminderScheduler.canScheduleExactAlarms(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            startActivity(ReminderScheduler.exactAlarmSettingsIntent(this));
-            return;
-        }
-
-        ReminderScheduler.scheduleAll(this);
-        Toast.makeText(this, "Reminder alerts are ready.", Toast.LENGTH_SHORT).show();
-    }
-
-    private boolean needsNotificationPermission() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
-    }
-
-    private String alertsLabel() {
-        if (needsNotificationPermission()) {
-            return "Enable alerts";
-        }
-        if (!ReminderScheduler.canScheduleExactAlarms(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return "Alarm access";
-        }
-        return "Alerts on";
-    }
-
-    private int alertColor() {
-        if (needsNotificationPermission()) {
-            return COLOR_CORAL;
-        }
-        if (!ReminderScheduler.canScheduleExactAlarms(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return COLOR_BLUE;
-        }
-        return COLOR_GREEN;
     }
 
     private View sectionTitle(String title, String subtitle) {
