@@ -12,14 +12,12 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,12 +45,12 @@ import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
 import com.jojokorok.nourishrx.profiles.ProfilePhotoFlow;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
+import com.jojokorok.nourishrx.ui.AppShellFlow;
 import com.jojokorok.nourishrx.ui.NourishColors;
 import com.jojokorok.nourishrx.ui.NourishUi;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -68,8 +66,6 @@ public class MainActivity extends Activity {
     private static final String MODE_NUTRITION = "nutrition";
     private static final String TAB_ABOUT = "about";
 
-    private static final int COLOR_SURFACE = NourishColors.SURFACE;
-    private static final int COLOR_CARD = NourishColors.CARD;
     private static final int COLOR_INK = NourishColors.INK;
     private static final int COLOR_MUTED = NourishColors.MUTED;
     private static final int COLOR_GREEN = NourishColors.GREEN;
@@ -80,15 +76,13 @@ public class MainActivity extends Activity {
     private static final int COLOR_BLUE_SOFT = NourishColors.BLUE_SOFT;
     private static final int COLOR_GOLD = NourishColors.GOLD;
     private static final int COLOR_GOLD_SOFT = NourishColors.GOLD_SOFT;
-    private static final int COLOR_BORDER = NourishColors.BORDER;
-    private static final int COLOR_TAB_TRACK = NourishColors.TAB_TRACK;
 
     private final ZoneId zoneId = ZoneId.systemDefault();
-    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault());
 
     private MedicationStore store;
     private PremiumManager premiumManager;
     private NourishUi ui;
+    private AppShellFlow appShellFlow;
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
     private MedicationEditorFlow medicationEditorFlow;
@@ -102,7 +96,6 @@ public class MainActivity extends Activity {
     private OpenFoodFactsFlow openFoodFactsFlow;
     private ProfileManagementFlow profileManagementFlow;
     private ProfilePhotoFlow profilePhotoFlow;
-    private LinearLayout root;
     private LinearLayout content;
     private String currentTab = "today";
     private String currentMode = MODE_MEDICATION;
@@ -137,6 +130,7 @@ public class MainActivity extends Activity {
         nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
         profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
+        appShellFlow = new AppShellFlow(this, store, ui, zoneId, appShellCallbacks());
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
@@ -197,210 +191,8 @@ public class MainActivity extends Activity {
     }
 
     private void renderShell() {
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(COLOR_SURFACE);
-        root.setPadding(dp(16), dp(12), dp(16), 0);
-
-        root.addView(headerPanel());
-        root.addView(tabRow());
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, dp(14), 0, dp(24));
-        scrollView.addView(content, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        root.addView(scrollView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1
-        ));
-
-        setContentView(root);
+        content = appShellFlow.render();
         renderCurrentTab();
-    }
-
-    private View headerPanel() {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16), dp(16), dp(16), dp(14));
-        panel.setBackground(roundedGradient(
-                new int[]{
-                        Color.rgb(222, 244, 231),
-                        Color.rgb(255, 237, 215),
-                        Color.rgb(236, 242, 255)
-                },
-                dp(26)
-        ));
-        panel.setElevation(dp(2));
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        Profile profile = selectedProfile();
-        String profileName = profile.name;
-        View mark = profileAvatar(profile, 54, COLOR_GREEN, 18);
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(avatarWidthDp(profile, 54)), dp(54));
-        markParams.rightMargin = dp(12);
-        top.addView(mark, markParams);
-
-        LinearLayout titleGroup = new LinearLayout(this);
-        titleGroup.setOrientation(LinearLayout.VERTICAL);
-        TextView headline = displayText(profileName, 28, COLOR_INK);
-        headline.setSingleLine(true);
-        headline.setEllipsize(TextUtils.TruncateAt.END);
-        titleGroup.addView(headline);
-        TextView date = text("Today - " + LocalDate.now().format(dateFormatter), 13, COLOR_MUTED, Typeface.BOLD);
-        titleGroup.addView(date);
-        top.addView(titleGroup, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        boolean nutritionMode = MODE_NUTRITION.equals(currentMode);
-        Button add = button(nutritionMode ? "+ Log" : "+ Med", Color.WHITE, COLOR_GREEN);
-        add.setOnClickListener(view -> {
-            if (nutritionMode) {
-                nutritionMealFlow.showLogFoodDialog("");
-            } else {
-                medicationEditorFlow.show(null);
-            }
-        });
-        top.addView(add, compactButtonParams());
-        panel.addView(top);
-
-        LinearLayout utilityActions = new LinearLayout(this);
-        utilityActions.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button profileButton = button("Manage profiles", COLOR_BLUE, Color.WHITE);
-        profileButton.setOnClickListener(view -> profileManagementFlow.showProfilesDialog());
-        utilityActions.addView(profileButton, weightedActionParams());
-
-        boolean showingAbout = TAB_ABOUT.equals(currentTab);
-        Button aboutButton = button("About", showingAbout ? Color.WHITE : COLOR_BLUE, showingAbout ? COLOR_BLUE : Color.WHITE);
-        aboutButton.setOnClickListener(view -> {
-            currentTab = TAB_ABOUT;
-            renderShell();
-        });
-        LinearLayout.LayoutParams aboutParams = new LinearLayout.LayoutParams(0, dp(44), 1);
-        utilityActions.addView(aboutButton, aboutParams);
-
-        LinearLayout.LayoutParams utilityParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        utilityParams.topMargin = dp(12);
-        panel.addView(utilityActions, utilityParams);
-
-        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        modeParams.topMargin = dp(10);
-        panel.addView(modeSwitchRow(), modeParams);
-
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.setPadding(0, dp(14), 0, 0);
-        if (nutritionMode) {
-            LocalDate today = LocalDate.now(zoneId);
-            long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-            long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-            int foodLogCount = store.getMealFoodLogs(currentProfileId, start, end).size();
-            int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-            List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 1);
-            stats.addView(summaryPill(plural(foodLogCount, "food log", "food logs"), COLOR_GREEN, COLOR_GREEN_SOFT));
-            stats.addView(summaryPill(waterOunces + " oz water", COLOR_BLUE, COLOR_BLUE_SOFT));
-            stats.addView(summaryPill(weights.isEmpty() ? "no weight" : formatPounds(weights.get(0).pounds) + " lb", COLOR_GOLD, COLOR_GOLD_SOFT));
-        } else {
-            List<Medication> medications = store.getAllMedications(currentProfileId);
-            int todayCount = medicationTodayFlow.doseCountFor(LocalDate.now(zoneId));
-            long lowCount = medications.stream().filter(Medication::isLowStock).count();
-            stats.addView(summaryPill(plural(todayCount, "dose", "doses"), COLOR_GREEN, COLOR_GREEN_SOFT));
-            stats.addView(summaryPill(plural(medications.size(), "med", "meds"), COLOR_BLUE, COLOR_BLUE_SOFT));
-            stats.addView(summaryPill(plural(lowCount, "refill", "refills"), COLOR_GOLD, COLOR_GOLD_SOFT));
-        }
-        panel.addView(stats);
-
-        Button alerts = button(alertsLabel(), alertColor(), Color.WHITE);
-        alerts.setOnClickListener(view -> handleAlertsTap());
-        LinearLayout.LayoutParams alertParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        alertParams.topMargin = dp(12);
-        panel.addView(alerts, alertParams);
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.bottomMargin = dp(12);
-        panel.setLayoutParams(params);
-        return panel;
-    }
-
-    private LinearLayout modeSwitchRow() {
-        LinearLayout modes = new LinearLayout(this);
-        modes.setOrientation(LinearLayout.HORIZONTAL);
-        modes.setPadding(dp(4), dp(4), dp(4), dp(4));
-        modes.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
-        modes.addView(modeButton("Medication", MODE_MEDICATION));
-        modes.addView(modeButton("Nutrition", MODE_NUTRITION));
-        return modes;
-    }
-
-    private Button modeButton(String label, String mode) {
-        boolean selected = currentMode.equals(mode);
-        Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_BLUE : Color.TRANSPARENT);
-        button.setOnClickListener(view -> setAppMode(mode));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(38), 1);
-        params.leftMargin = dp(2);
-        params.rightMargin = dp(2);
-        button.setLayoutParams(params);
-        return button;
-    }
-
-    private LinearLayout tabRow() {
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        tabs.setPadding(dp(4), dp(4), dp(4), dp(4));
-        tabs.setBackground(rounded(COLOR_TAB_TRACK, Color.TRANSPARENT, dp(20)));
-        if (MODE_NUTRITION.equals(currentMode)) {
-            tabs.addView(tabButton("Today", "nutrition_today"));
-            tabs.addView(tabButton("Meals", "nutrition_meals"));
-            tabs.addView(tabButton("Saved", "nutrition_saved"));
-            tabs.addView(tabButton("Foods", "nutrition_foods"));
-            tabs.addView(tabButton("Body", "nutrition_body"));
-        } else {
-            tabs.addView(tabButton("Today", "today"));
-            tabs.addView(tabButton("Meds", "meds"));
-            tabs.addView(tabButton("Stock", "stock"));
-        }
-        return tabs;
-    }
-
-    private Button tabButton(String label, String tab) {
-        boolean selected = currentTab.equals(tab);
-        Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_GREEN : Color.TRANSPARENT);
-        button.setTextSize(12);
-        button.setSingleLine(true);
-        button.setMaxLines(1);
-        button.setEllipsize(TextUtils.TruncateAt.END);
-        button.setMinWidth(0);
-        button.setMinimumWidth(0);
-        button.setPadding(dp(4), 0, dp(4), 0);
-        button.setOnClickListener(view -> {
-            currentTab = tab;
-            renderShell();
-        });
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1);
-        params.leftMargin = dp(2);
-        params.rightMargin = dp(2);
-        button.setLayoutParams(params);
-        return button;
     }
 
     private void renderCurrentTab() {
@@ -436,6 +228,91 @@ public class MainActivity extends Activity {
 
     private boolean requirePremium(PremiumFeature feature) {
         return aboutPremiumFlow.requirePremium(feature);
+    }
+
+    private AppShellFlow.Callbacks appShellCallbacks() {
+        return new AppShellFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String currentMode() {
+                return MainActivity.this.currentMode;
+            }
+
+            @Override
+            public String currentTab() {
+                return MainActivity.this.currentTab;
+            }
+
+            @Override
+            public Profile selectedProfile() {
+                return MainActivity.this.selectedProfile();
+            }
+
+            @Override
+            public View profileAvatar(Profile profile, int sizeDp, int fallbackColor, int textSp) {
+                return MainActivity.this.profileAvatar(profile, sizeDp, fallbackColor, textSp);
+            }
+
+            @Override
+            public int avatarWidthDp(Profile profile, int heightDp) {
+                return MainActivity.this.avatarWidthDp(profile, heightDp);
+            }
+
+            @Override
+            public int todayDoseCount() {
+                return medicationTodayFlow.doseCountFor(LocalDate.now(zoneId));
+            }
+
+            @Override
+            public String alertsLabel() {
+                return MainActivity.this.alertsLabel();
+            }
+
+            @Override
+            public int alertColor() {
+                return MainActivity.this.alertColor();
+            }
+
+            @Override
+            public void showQuickAdd(boolean nutritionMode) {
+                if (nutritionMode) {
+                    nutritionMealFlow.showLogFoodDialog("");
+                } else {
+                    medicationEditorFlow.show(null);
+                }
+            }
+
+            @Override
+            public void showProfiles() {
+                profileManagementFlow.showProfilesDialog();
+            }
+
+            @Override
+            public void selectAbout() {
+                currentTab = TAB_ABOUT;
+                renderShell();
+            }
+
+            @Override
+            public void selectMode(String mode) {
+                setAppMode(mode);
+            }
+
+            @Override
+            public void selectTab(String tab) {
+                currentTab = tab;
+                renderShell();
+            }
+
+            @Override
+            public void handleAlertsTap() {
+                MainActivity.this.handleAlertsTap();
+            }
+        };
     }
 
     private MedicationEditorFlow.Callbacks medicationEditorCallbacks() {
@@ -1059,10 +936,6 @@ public class MainActivity extends Activity {
         return formatFloatInput(value) + "mcg";
     }
 
-    private String formatPounds(float pounds) {
-        return formatFloatInput(pounds);
-    }
-
     private String nutritionTotalsLine(NutritionTotals totals) {
         return totals.calories + " cal - " +
                 formatGrams(totals.proteinGrams) + " protein - " +
@@ -1250,10 +1123,6 @@ public class MainActivity extends Activity {
         return ui.summaryPill(label, textColor, background);
     }
 
-    private TextView displayText(String value, int sp, int color) {
-        return ui.displayText(value, sp, color);
-    }
-
     private TextView text(String value, int sp, int color, int style) {
         return ui.text(value, sp, color, style);
     }
@@ -1272,13 +1141,6 @@ public class MainActivity extends Activity {
 
     private GradientDrawable roundedGradient(int[] colors, int radius) {
         return ui.roundedGradient(colors, radius);
-    }
-
-    private LinearLayout.LayoutParams compactButtonParams() {
-        return new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(44)
-        );
     }
 
     private LinearLayout.LayoutParams weightedActionParams() {
