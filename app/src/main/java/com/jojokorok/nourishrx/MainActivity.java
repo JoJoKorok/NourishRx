@@ -1,7 +1,6 @@
 package com.jojokorok.nourishrx;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -37,7 +36,6 @@ import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionTrackingFlow;
 import com.jojokorok.nourishrx.nutrition.OpenFoodFactsFlow;
-import com.jojokorok.nourishrx.premium.PremiumFeature;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
 import com.jojokorok.nourishrx.profiles.ProfilePhotoFlow;
@@ -219,10 +217,6 @@ public class MainActivity extends Activity {
         } else {
             medicationTodayFlow.renderToday(content);
         }
-    }
-
-    private boolean requirePremium(PremiumFeature feature) {
-        return aboutPremiumFlow.requirePremium(feature);
     }
 
     private AppShellFlow.Callbacks appShellCallbacks() {
@@ -981,18 +975,6 @@ public class MainActivity extends Activity {
             }
         }
         return names.size();
-    }
-
-    private View infoLine(String label, String value) {
-        LinearLayout line = new LinearLayout(this);
-        line.setOrientation(LinearLayout.VERTICAL);
-        line.setPadding(0, dp(12), 0, 0);
-
-        line.addView(text(label, 13, COLOR_MUTED, Typeface.BOLD));
-        TextView valueView = text(value, 15, COLOR_INK, Typeface.BOLD);
-        valueView.setPadding(0, dp(2), 0, 0);
-        line.addView(valueView);
-        return line;
     }
 
     private View sectionTitle(String title, String subtitle) {
