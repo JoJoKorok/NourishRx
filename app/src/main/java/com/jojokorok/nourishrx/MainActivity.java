@@ -1,44 +1,22 @@
 package com.jojokorok.nourishrx;
 
-import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.text.InputType;
-import android.text.TextUtils;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.SeekBar;
-import android.widget.ArrayAdapter;
-import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.jojokorok.nourishrx.api.OpenFoodFactsClient;
 import com.jojokorok.nourishrx.data.MealFoodLog;
 import com.jojokorok.nourishrx.data.Medication;
 import com.jojokorok.nourishrx.data.MedicationStore;
@@ -46,24 +24,32 @@ import com.jojokorok.nourishrx.data.NutritionFood;
 import com.jojokorok.nourishrx.data.NutritionTotals;
 import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.SavedMeal;
-import com.jojokorok.nourishrx.data.SavedMealItem;
 import com.jojokorok.nourishrx.data.WeightEntry;
-import com.jojokorok.nourishrx.premium.PremiumFeature;
+import com.jojokorok.nourishrx.about.AboutPremiumFlow;
+import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
+import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
+import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
+import com.jojokorok.nourishrx.medications.MedicationScreens;
+import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionScreens;
+import com.jojokorok.nourishrx.nutrition.NutritionTrackingFlow;
+import com.jojokorok.nourishrx.nutrition.OpenFoodFactsFlow;
 import com.jojokorok.nourishrx.premium.PremiumManager;
-import com.jojokorok.nourishrx.premium.PremiumTier;
+import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
+import com.jojokorok.nourishrx.profiles.ProfilePhotoFlow;
+import com.jojokorok.nourishrx.reminders.ReminderAlertsFlow;
 import com.jojokorok.nourishrx.reminders.ReminderScheduler;
+import com.jojokorok.nourishrx.ui.AppShellFlow;
+import com.jojokorok.nourishrx.ui.NourishColors;
+import com.jojokorok.nourishrx.ui.NourishUi;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.io.IOException;
-import java.io.InputStream;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
@@ -75,31 +61,38 @@ public class MainActivity extends Activity {
     private static final String MODE_MEDICATION = "medication";
     private static final String MODE_NUTRITION = "nutrition";
     private static final String TAB_ABOUT = "about";
-    private static final String GITHUB_PROFILE_URL = "https://github.com/JoJoKorok";
 
-    private static final int COLOR_SURFACE = Color.rgb(246, 242, 232);
-    private static final int COLOR_CARD = Color.rgb(255, 252, 246);
-    private static final int COLOR_INK = Color.rgb(32, 37, 50);
-    private static final int COLOR_MUTED = Color.rgb(102, 99, 112);
-    private static final int COLOR_GREEN = Color.rgb(32, 120, 100);
-    private static final int COLOR_GREEN_SOFT = Color.rgb(220, 242, 233);
-    private static final int COLOR_CORAL = Color.rgb(214, 95, 73);
-    private static final int COLOR_CORAL_SOFT = Color.rgb(252, 228, 219);
-    private static final int COLOR_BLUE = Color.rgb(70, 111, 168);
-    private static final int COLOR_BLUE_SOFT = Color.rgb(226, 235, 249);
-    private static final int COLOR_GOLD = Color.rgb(179, 127, 47);
-    private static final int COLOR_GOLD_SOFT = Color.rgb(255, 240, 201);
-    private static final int COLOR_BORDER = Color.rgb(224, 217, 203);
-    private static final int COLOR_TAB_TRACK = Color.rgb(234, 228, 214);
+    private static final int COLOR_INK = NourishColors.INK;
+    private static final int COLOR_MUTED = NourishColors.MUTED;
+    private static final int COLOR_GREEN = NourishColors.GREEN;
+    private static final int COLOR_GREEN_SOFT = NourishColors.GREEN_SOFT;
+    private static final int COLOR_CORAL = NourishColors.CORAL;
+    private static final int COLOR_CORAL_SOFT = NourishColors.CORAL_SOFT;
+    private static final int COLOR_BLUE = NourishColors.BLUE;
+    private static final int COLOR_BLUE_SOFT = NourishColors.BLUE_SOFT;
+    private static final int COLOR_GOLD = NourishColors.GOLD;
+    private static final int COLOR_GOLD_SOFT = NourishColors.GOLD_SOFT;
 
     private final ZoneId zoneId = ZoneId.systemDefault();
-    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault());
-    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault());
-    private final DateTimeFormatter shortDateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault());
 
     private MedicationStore store;
     private PremiumManager premiumManager;
-    private LinearLayout root;
+    private NourishUi ui;
+    private AppShellFlow appShellFlow;
+    private AboutPremiumFlow aboutPremiumFlow;
+    private BarcodeLookupFlow barcodeLookupFlow;
+    private MedicationEditorFlow medicationEditorFlow;
+    private MedicationManagementFlow medicationManagementFlow;
+    private MedicationScreens medicationScreens;
+    private MedicationTodayFlow medicationTodayFlow;
+    private NutritionFoodEditorFlow nutritionFoodEditorFlow;
+    private NutritionMealFlow nutritionMealFlow;
+    private NutritionScreens nutritionScreens;
+    private NutritionTrackingFlow nutritionTrackingFlow;
+    private OpenFoodFactsFlow openFoodFactsFlow;
+    private ProfileManagementFlow profileManagementFlow;
+    private ProfilePhotoFlow profilePhotoFlow;
+    private ReminderAlertsFlow reminderAlertsFlow;
     private LinearLayout content;
     private String currentTab = "today";
     private String currentMode = MODE_MEDICATION;
@@ -109,14 +102,38 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ui = new NourishUi(this);
         store = new MedicationStore(this);
         premiumManager = new PremiumManager(this);
+        aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
+        nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
+        nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
+        nutritionTrackingFlow = new NutritionTrackingFlow(this, store, ui, zoneId, nutritionTrackingCallbacks());
+        openFoodFactsFlow = new OpenFoodFactsFlow(this, store, ui, openFoodFactsCallbacks());
+        barcodeLookupFlow = new BarcodeLookupFlow(
+                this,
+                ui,
+                premiumManager,
+                () -> currentProfileId,
+                openFoodFactsFlow::renderInspection,
+                aboutPremiumFlow::showPremiumOverviewDialog,
+                REQUEST_BARCODE_CAMERA,
+                REQUEST_BARCODE_SCAN
+        );
+        medicationEditorFlow = new MedicationEditorFlow(this, store, ui, medicationEditorCallbacks());
+        medicationManagementFlow = new MedicationManagementFlow(this, store, ui, medicationManagementCallbacks());
+        medicationScreens = new MedicationScreens(this, store, ui, medicationCallbacks());
+        medicationTodayFlow = new MedicationTodayFlow(this, store, ui, zoneId, medicationTodayCallbacks());
+        nutritionScreens = new NutritionScreens(this, store, ui, zoneId, nutritionCallbacks());
+        profilePhotoFlow = new ProfilePhotoFlow(this, store, ui, REQUEST_PROFILE_PHOTO, photoCallbacks());
+        profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
+        reminderAlertsFlow = new ReminderAlertsFlow(this, REQUEST_NOTIFICATIONS, this::renderShell);
+        appShellFlow = new AppShellFlow(this, store, ui, zoneId, appShellCallbacks());
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
         applyReminderProfileIntent(getIntent());
-        ReminderScheduler.ensureNotificationChannel(this);
-        ReminderScheduler.scheduleAll(this);
+        reminderAlertsFlow.initialize();
         renderShell();
     }
 
@@ -134,7 +151,7 @@ public class MainActivity extends Activity {
         super.onResume();
         if (store != null) {
             currentProfileId = resolveProfileId(currentProfileId);
-            ReminderScheduler.scheduleAll(this);
+            reminderAlertsFlow.refreshSchedules();
             renderShell();
         }
     }
@@ -143,20 +160,13 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_NOTIFICATIONS) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Notification reminders are enabled.", Toast.LENGTH_SHORT).show();
-                handleAlertsTap();
-            } else {
-                Toast.makeText(this, "Notifications are off. Schedules still stay saved.", Toast.LENGTH_LONG).show();
-            }
-            renderShell();
+            reminderAlertsFlow.handleNotificationPermissionResult(
+                    grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            );
         } else if (requestCode == REQUEST_BARCODE_CAMERA) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Camera access enabled for barcode scanning.", Toast.LENGTH_SHORT).show();
-                launchBarcodeScanner();
-            } else {
-                Toast.makeText(this, "Camera access is off. Manual barcode lookup still works.", Toast.LENGTH_LONG).show();
-            }
+            barcodeLookupFlow.handleCameraPermissionResult(
+                    grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            );
         }
     }
 
@@ -164,803 +174,506 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_BARCODE_SCAN) {
-            if (resultCode == RESULT_OK && data != null) {
-                String barcode = data.getStringExtra(BarcodeScannerActivity.EXTRA_BARCODE);
-                if (!TextUtils.isEmpty(barcode)) {
-                    showBarcodeLookupDialog(barcode.trim(), true);
-                }
-            }
+            barcodeLookupFlow.handleScannerResult(resultCode, data);
             return;
         }
 
-        if (requestCode != REQUEST_PROFILE_PHOTO) {
-            return;
+        if (requestCode == REQUEST_PROFILE_PHOTO) {
+            profilePhotoFlow.handlePhotoPickerResult(resultCode, data);
         }
-
-        if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingPhotoProfileId > 0) {
-            Uri photoUri = data.getData();
-            try {
-                getContentResolver().takePersistableUriPermission(photoUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (IllegalArgumentException | SecurityException ignored) {
-                // Some providers grant a temporary read URI instead of a persistable one.
-            }
-            Profile profile = store.getProfile(pendingPhotoProfileId);
-            if (profile != null) {
-                showProfilePhotoEditor(profile, photoUri.toString(), 1.0f, 0.0f, 0.0f, 1.0f);
-            }
-        }
-        pendingPhotoProfileId = 0;
     }
 
     private void renderShell() {
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(COLOR_SURFACE);
-        root.setPadding(dp(16), dp(12), dp(16), 0);
-
-        root.addView(headerPanel());
-        root.addView(tabRow());
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, dp(14), 0, dp(24));
-        scrollView.addView(content, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        root.addView(scrollView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1
-        ));
-
-        setContentView(root);
+        content = appShellFlow.render();
         renderCurrentTab();
-    }
-
-    private View headerPanel() {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16), dp(16), dp(16), dp(14));
-        panel.setBackground(roundedGradient(
-                new int[]{
-                        Color.rgb(222, 244, 231),
-                        Color.rgb(255, 237, 215),
-                        Color.rgb(236, 242, 255)
-                },
-                dp(26)
-        ));
-        panel.setElevation(dp(2));
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        Profile profile = selectedProfile();
-        String profileName = profile.name;
-        View mark = profileAvatar(profile, 54, COLOR_GREEN, 18);
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(avatarWidthDp(profile, 54)), dp(54));
-        markParams.rightMargin = dp(12);
-        top.addView(mark, markParams);
-
-        LinearLayout titleGroup = new LinearLayout(this);
-        titleGroup.setOrientation(LinearLayout.VERTICAL);
-        TextView headline = displayText(profileName, 28, COLOR_INK);
-        headline.setSingleLine(true);
-        headline.setEllipsize(TextUtils.TruncateAt.END);
-        titleGroup.addView(headline);
-        TextView date = text("Today - " + LocalDate.now().format(dateFormatter), 13, COLOR_MUTED, Typeface.BOLD);
-        titleGroup.addView(date);
-        top.addView(titleGroup, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        boolean nutritionMode = MODE_NUTRITION.equals(currentMode);
-        Button add = button(nutritionMode ? "+ Log" : "+ Med", Color.WHITE, COLOR_GREEN);
-        add.setOnClickListener(view -> {
-            if (nutritionMode) {
-                showLogFoodDialog("");
-            } else {
-                showMedicationDialog(null);
-            }
-        });
-        top.addView(add, compactButtonParams());
-        panel.addView(top);
-
-        LinearLayout utilityActions = new LinearLayout(this);
-        utilityActions.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button profileButton = button("Manage profiles", COLOR_BLUE, Color.WHITE);
-        profileButton.setOnClickListener(view -> showProfilesDialog());
-        utilityActions.addView(profileButton, weightedActionParams());
-
-        boolean showingAbout = TAB_ABOUT.equals(currentTab);
-        Button aboutButton = button("About", showingAbout ? Color.WHITE : COLOR_BLUE, showingAbout ? COLOR_BLUE : Color.WHITE);
-        aboutButton.setOnClickListener(view -> {
-            currentTab = TAB_ABOUT;
-            renderShell();
-        });
-        LinearLayout.LayoutParams aboutParams = new LinearLayout.LayoutParams(0, dp(44), 1);
-        utilityActions.addView(aboutButton, aboutParams);
-
-        LinearLayout.LayoutParams utilityParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        utilityParams.topMargin = dp(12);
-        panel.addView(utilityActions, utilityParams);
-
-        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        modeParams.topMargin = dp(10);
-        panel.addView(modeSwitchRow(), modeParams);
-
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.setPadding(0, dp(14), 0, 0);
-        if (nutritionMode) {
-            LocalDate today = LocalDate.now(zoneId);
-            long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-            long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-            int foodLogCount = store.getMealFoodLogs(currentProfileId, start, end).size();
-            int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-            List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 1);
-            stats.addView(summaryPill(plural(foodLogCount, "food log", "food logs"), COLOR_GREEN, COLOR_GREEN_SOFT));
-            stats.addView(summaryPill(waterOunces + " oz water", COLOR_BLUE, COLOR_BLUE_SOFT));
-            stats.addView(summaryPill(weights.isEmpty() ? "no weight" : formatPounds(weights.get(0).pounds) + " lb", COLOR_GOLD, COLOR_GOLD_SOFT));
-        } else {
-            List<Medication> medications = store.getAllMedications(currentProfileId);
-            int todayCount = doseRowsFor(LocalDate.now(zoneId)).size();
-            long lowCount = medications.stream().filter(Medication::isLowStock).count();
-            stats.addView(summaryPill(plural(todayCount, "dose", "doses"), COLOR_GREEN, COLOR_GREEN_SOFT));
-            stats.addView(summaryPill(plural(medications.size(), "med", "meds"), COLOR_BLUE, COLOR_BLUE_SOFT));
-            stats.addView(summaryPill(plural(lowCount, "refill", "refills"), COLOR_GOLD, COLOR_GOLD_SOFT));
-        }
-        panel.addView(stats);
-
-        Button alerts = button(alertsLabel(), alertColor(), Color.WHITE);
-        alerts.setOnClickListener(view -> handleAlertsTap());
-        LinearLayout.LayoutParams alertParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        alertParams.topMargin = dp(12);
-        panel.addView(alerts, alertParams);
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.bottomMargin = dp(12);
-        panel.setLayoutParams(params);
-        return panel;
-    }
-
-    private LinearLayout modeSwitchRow() {
-        LinearLayout modes = new LinearLayout(this);
-        modes.setOrientation(LinearLayout.HORIZONTAL);
-        modes.setPadding(dp(4), dp(4), dp(4), dp(4));
-        modes.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
-        modes.addView(modeButton("Medication", MODE_MEDICATION));
-        modes.addView(modeButton("Nutrition", MODE_NUTRITION));
-        return modes;
-    }
-
-    private Button modeButton(String label, String mode) {
-        boolean selected = currentMode.equals(mode);
-        Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_BLUE : Color.TRANSPARENT);
-        button.setOnClickListener(view -> setAppMode(mode));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(38), 1);
-        params.leftMargin = dp(2);
-        params.rightMargin = dp(2);
-        button.setLayoutParams(params);
-        return button;
-    }
-
-    private LinearLayout tabRow() {
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        tabs.setPadding(dp(4), dp(4), dp(4), dp(4));
-        tabs.setBackground(rounded(COLOR_TAB_TRACK, Color.TRANSPARENT, dp(20)));
-        if (MODE_NUTRITION.equals(currentMode)) {
-            tabs.addView(tabButton("Today", "nutrition_today"));
-            tabs.addView(tabButton("Meals", "nutrition_meals"));
-            tabs.addView(tabButton("Saved", "nutrition_saved"));
-            tabs.addView(tabButton("Foods", "nutrition_foods"));
-            tabs.addView(tabButton("Body", "nutrition_body"));
-        } else {
-            tabs.addView(tabButton("Today", "today"));
-            tabs.addView(tabButton("Meds", "meds"));
-            tabs.addView(tabButton("Stock", "stock"));
-        }
-        return tabs;
-    }
-
-    private Button tabButton(String label, String tab) {
-        boolean selected = currentTab.equals(tab);
-        Button button = button(label, selected ? Color.WHITE : COLOR_MUTED, selected ? COLOR_GREEN : Color.TRANSPARENT);
-        button.setTextSize(12);
-        button.setSingleLine(true);
-        button.setMaxLines(1);
-        button.setEllipsize(TextUtils.TruncateAt.END);
-        button.setMinWidth(0);
-        button.setMinimumWidth(0);
-        button.setPadding(dp(4), 0, dp(4), 0);
-        button.setOnClickListener(view -> {
-            currentTab = tab;
-            renderShell();
-        });
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1);
-        params.leftMargin = dp(2);
-        params.rightMargin = dp(2);
-        button.setLayoutParams(params);
-        return button;
     }
 
     private void renderCurrentTab() {
         content.removeAllViews();
         if (TAB_ABOUT.equals(currentTab)) {
-            renderAbout();
+            aboutPremiumFlow.renderAbout(content);
             return;
         }
 
         if (MODE_NUTRITION.equals(currentMode)) {
             if ("nutrition_meals".equals(currentTab)) {
-                renderNutritionMeals();
+                nutritionScreens.renderMeals(content);
             } else if ("nutrition_saved".equals(currentTab)) {
-                renderNutritionSavedMeals();
+                nutritionScreens.renderSavedMeals(content);
             } else if ("nutrition_foods".equals(currentTab)) {
-                renderNutritionFoods();
+                nutritionScreens.renderFoods(content);
             } else if ("nutrition_body".equals(currentTab)) {
-                renderNutritionBody();
+                nutritionScreens.renderBody(content);
             } else {
-                renderNutritionToday();
+                nutritionScreens.renderToday(content);
             }
             return;
         }
 
         if ("meds".equals(currentTab)) {
-            renderMedications();
+            medicationScreens.renderMedications(content);
         } else if ("stock".equals(currentTab)) {
-            renderInventory();
+            medicationScreens.renderInventory(content);
         } else {
-            renderToday();
+            medicationTodayFlow.renderToday(content);
         }
     }
 
-    private void renderAbout() {
-        content.addView(sectionTitle("About", "Created by Joseph Bekele"));
-
-        LinearLayout hero = card();
-        hero.setBackground(roundedGradient(
-                new int[]{
-                        Color.rgb(229, 244, 238),
-                        Color.rgb(236, 242, 255),
-                        Color.rgb(255, 251, 239)
-                },
-                dp(24)
-        ));
-
-        TextView mark = text("NR", 24, Color.WHITE, Typeface.BOLD);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(28)));
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(58), dp(58));
-        markParams.bottomMargin = dp(12);
-        hero.addView(mark, markParams);
-
-        TextView title = displayText("NourishRx", 32, COLOR_INK);
-        hero.addView(title);
-        TextView byline = text("Created by Joseph Bekele", 16, COLOR_GREEN, Typeface.BOLD);
-        byline.setPadding(0, dp(4), 0, 0);
-        hero.addView(byline);
-        TextView summary = text(
-                "A local-first Android organizer for medication scheduling, nutrition logging, water intake, weight tracking, and shared profiles.",
-                15,
-                COLOR_MUTED,
-                Typeface.BOLD
-        );
-        summary.setPadding(0, dp(12), 0, 0);
-        hero.addView(summary);
-        content.addView(hero);
-
-        LinearLayout project = card();
-        project.addView(text("Project", 19, COLOR_INK, Typeface.BOLD));
-        project.addView(infoLine("License", "MIT License"));
-        project.addView(infoLine("Privacy", "Local device storage; OpenFoodFacts is contacted only when searching online foods."));
-        project.addView(infoLine("GitHub", "github.com/JoJoKorok"));
-
-        Button github = button("Open GitHub", Color.WHITE, COLOR_BLUE);
-        github.setOnClickListener(view -> openExternalLink(GITHUB_PROFILE_URL));
-        LinearLayout.LayoutParams githubParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        githubParams.topMargin = dp(14);
-        project.addView(github, githubParams);
-        content.addView(project);
-
-        LinearLayout plan = card();
-        plan.addView(text("Plan", 19, COLOR_INK, Typeface.BOLD));
-        plan.addView(infoLine("Current access", premiumManager.planLabel()));
-        plan.addView(infoLine("Barcode lookups", premiumManager.barcodeAccessLabel()));
-        plan.addView(infoLine("Premium model", premiumManager.premiumProductLabel() + " - " + premiumManager.purchaseModelLabel()));
-        plan.addView(infoLine("Future sync", "Cloud backup and cross-device sync will stay separate from the one-time unlock."));
-
-        Button premium = button("View premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
-        premium.setOnClickListener(view -> showPremiumOverviewDialog());
-        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        premiumParams.topMargin = dp(14);
-        plan.addView(premium, premiumParams);
-
-        if (!premiumManager.isPremiumActive()) {
-            Button unlock = button("Unlock premium", Color.WHITE, COLOR_GREEN);
-            unlock.setOnClickListener(view -> showPremiumPurchaseUnavailableDialog());
-            LinearLayout.LayoutParams unlockParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(46)
-            );
-            unlockParams.topMargin = dp(10);
-            plan.addView(unlock, unlockParams);
-        }
-
-        content.addView(plan);
-    }
-
-    private boolean requirePremium(PremiumFeature feature) {
-        if (premiumManager.canUse(feature)) {
-            return true;
-        }
-
-        showPremiumFeatureDialog(feature);
-        return false;
-    }
-
-    private void showPremiumFeatureDialog(PremiumFeature feature) {
-        String accessNote = feature.tier == PremiumTier.ONE_TIME_PREMIUM
-                ? "This is planned for NourishRx Premium, a one-time purchase. Google Play Billing is not connected in this build yet."
-                : "This is planned for a future sync subscription, separate from the one-time Premium unlock.";
-
-        new AlertDialog.Builder(this)
-                .setTitle(feature.title)
-                .setMessage(feature.description + "\n\n" + accessNote)
-                .setNegativeButton("Close", null)
-                .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
-                .show();
-    }
-
-    private void showPremiumOverviewDialog() {
-        StringBuilder message = new StringBuilder();
-        message.append("Current access: ").append(premiumManager.planLabel()).append("\n");
-        message.append("Barcode lookups: ").append(premiumManager.barcodeAccessLabel()).append("\n");
-        message.append("Premium model: ")
-                .append(premiumManager.premiumProductLabel())
-                .append(" - ")
-                .append(premiumManager.purchaseModelLabel())
-                .append("\n\n");
-        appendPremiumFeatureGroup(message, PremiumTier.ONE_TIME_PREMIUM);
-        message.append("\n");
-        appendPremiumFeatureGroup(message, PremiumTier.SYNC_SUBSCRIPTION);
-        message.append("\nPurchases are not available until Google Play Billing is added.");
-
-        new AlertDialog.Builder(this)
-                .setTitle("NourishRx Premium")
-                .setMessage(message.toString())
-                .setNegativeButton("Close", null)
-                .setPositiveButton("Unlock premium", (dialog, which) -> showPremiumPurchaseUnavailableDialog())
-                .show();
-    }
-
-    private void showPremiumPurchaseUnavailableDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Unlock premium")
-                .setMessage(premiumManager.purchaseUnavailableMessage())
-                .setPositiveButton("OK", null)
-                .show();
-    }
-
-    private void appendPremiumFeatureGroup(StringBuilder message, PremiumTier tier) {
-        message.append(tier.label).append(":\n");
-        for (PremiumFeature feature : PremiumFeature.values()) {
-            if (feature.tier == tier) {
-                message.append("- ").append(feature.title).append(": ").append(feature.description).append("\n");
+    private AppShellFlow.Callbacks appShellCallbacks() {
+        return new AppShellFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
             }
-        }
-    }
 
-    private void renderToday() {
-        LocalDate today = LocalDate.now(zoneId);
-        List<DoseRow> rows = doseRowsFor(today);
-        String profileName = selectedProfileName();
-
-        content.addView(sectionTitle("Today", profileName + " has " + rows.size() + " scheduled doses"));
-
-        if (store.getActiveMedications(currentProfileId).isEmpty()) {
-            emptyState("Add the first medication for " + profileName + ".", "Add medication", view -> showMedicationDialog(null));
-            return;
-        }
-
-        if (rows.isEmpty()) {
-            emptyState("No active doses are scheduled for " + profileName + " today.", "Add medication", view -> showMedicationDialog(null));
-            return;
-        }
-
-        for (DoseRow row : rows) {
-            content.addView(doseCard(row));
-        }
-
-        TextView footer = text("Always follow your prescriber's directions.", 12, COLOR_MUTED, Typeface.NORMAL);
-        footer.setGravity(Gravity.CENTER);
-        footer.setPadding(0, dp(12), 0, 0);
-        content.addView(footer);
-    }
-
-    private void renderMedications() {
-        List<Medication> medications = store.getAllMedications(currentProfileId);
-        content.addView(sectionTitle("Medications", selectedProfileName() + " has " + medications.size() + " saved"));
-
-        if (medications.isEmpty()) {
-            emptyState("Add names, doses, instructions, and reminders for " + selectedProfileName() + ".", "Add medication", view -> showMedicationDialog(null));
-            return;
-        }
-
-        for (Medication medication : medications) {
-            content.addView(medicationCard(medication));
-        }
-    }
-
-    private void renderInventory() {
-        List<Medication> medications = store.getAllMedications(currentProfileId);
-        long lowCount = medications.stream().filter(Medication::isLowStock).count();
-        content.addView(sectionTitle("Stock", selectedProfileName() + " has " + lowCount + " low stock"));
-
-        if (medications.isEmpty()) {
-            emptyState("Inventory for " + selectedProfileName() + " appears here after adding meds.", "Add medication", view -> showMedicationDialog(null));
-            return;
-        }
-
-        for (Medication medication : medications) {
-            content.addView(inventoryCard(medication));
-        }
-    }
-
-    private void renderNutritionToday() {
-        LocalDate today = LocalDate.now(zoneId);
-        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        List<MealFoodLog> logs = store.getMealFoodLogs(currentProfileId, start, end);
-        List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 5);
-        int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-        NutritionTotals totals = totalsFromMealLogs(logs);
-
-        content.addView(sectionTitle("Nutrition", selectedProfileName() + " has " + logs.size() + " foods logged today"));
-        content.addView(nutritionSummaryCard(totals.calories, totals.proteinGrams, totals.totalCarbsGrams, totals.totalFatGrams));
-        content.addView(dailyNutritionFactsCard(totals));
-        content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
-        content.addView(waterCard(waterOunces, start, end));
-        content.addView(weightCard(weights));
-
-        content.addView(sectionTitle("Meal log", logs.isEmpty() ? "No foods logged yet" : plural(distinctMealCount(logs), "meal", "meals") + " today"));
-        if (logs.isEmpty()) {
-            emptyState("Create foods once, then log them into any meal.", "Log food", view -> showLogFoodDialog(""));
-            return;
-        }
-
-        for (MealFoodLog log : logs) {
-            content.addView(mealLogCard(log));
-        }
-    }
-
-    private void renderNutritionMeals() {
-        LocalDate today = LocalDate.now(zoneId);
-        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        List<MealFoodLog> logs = store.getMealFoodLogs(currentProfileId, start, end);
-
-        content.addView(sectionTitle("Meals", logs.isEmpty() ? "No foods logged today" : plural(logs.size(), "food entry", "food entries") + " today"));
-        content.addView(defaultMealsCard(store.getMealDefaults(currentProfileId)));
-        Button addMeal = button("+ Log food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addMeal.setOnClickListener(view -> showLogFoodDialog(""));
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(4);
-        content.addView(addMeal, addParams);
-
-        if (logs.isEmpty()) {
-            emptyState("Pick a saved food and add it into breakfast, lunch, dinner, or any meal you name.", "Log food", view -> showLogFoodDialog(""));
-            return;
-        }
-
-        for (String mealName : mealNamesForLogs(logs)) {
-            List<MealFoodLog> mealLogs = logsForMeal(logs, mealName);
-            content.addView(mealTotalsCard(mealName, mealLogs));
-            for (MealFoodLog log : mealLogs) {
-                content.addView(mealLogCard(log));
+            @Override
+            public String currentMode() {
+                return MainActivity.this.currentMode;
             }
-        }
-    }
 
-    private void renderNutritionSavedMeals() {
-        List<SavedMeal> savedMeals = store.getSavedMeals(currentProfileId);
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-
-        content.addView(sectionTitle("Saved", savedMeals.isEmpty() ? "No saved meal combinations yet" : plural(savedMeals.size(), "saved meal", "saved meals")));
-
-        Button create = button("+ Saved meal", COLOR_GREEN, COLOR_GREEN_SOFT);
-        create.setOnClickListener(view -> showSavedMealDialog(null));
-        LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        createParams.topMargin = dp(4);
-        content.addView(create, createParams);
-
-        if (foods.isEmpty()) {
-            emptyState("Save food items first, then combine them into reusable meals.", "Add food", view -> showFoodDialog(null));
-            return;
-        }
-
-        if (savedMeals.isEmpty()) {
-            emptyState("Build a reusable meal from foods already saved in the app.", "Create saved meal", view -> showSavedMealDialog(null));
-            return;
-        }
-
-        for (SavedMeal savedMeal : savedMeals) {
-            content.addView(savedMealCard(savedMeal));
-        }
-    }
-
-    private void renderNutritionFoods() {
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-
-        content.addView(sectionTitle("Foods", foods.isEmpty() ? "No saved foods yet" : plural(foods.size(), "saved food", "saved foods")));
-        LinearLayout actions = actionRow();
-        actions.setPadding(0, dp(4), 0, 0);
-
-        Button addFood = button("+ Manual", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addFood.setOnClickListener(view -> showFoodDialog(null));
-        actions.addView(addFood, weightedActionParams());
-
-        Button searchFood = button("Find online", COLOR_BLUE, COLOR_BLUE_SOFT);
-        searchFood.setOnClickListener(view -> showOpenFoodFactsSearchDialog());
-        actions.addView(searchFood, weightedActionParams());
-
-        Button scanBarcode = button("Barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
-        scanBarcode.setOnClickListener(view -> showBarcodeScannerEntryPoint());
-        actions.addView(scanBarcode, weightedActionParams());
-        content.addView(actions);
-
-        if (foods.isEmpty()) {
-            emptyState("Save food items manually or import inspectable options from OpenFoodFacts.", "Search foods", view -> showOpenFoodFactsSearchDialog());
-            return;
-        }
-
-        for (NutritionFood food : foods) {
-            content.addView(foodCard(food));
-        }
-    }
-
-    private void showBarcodeScannerEntryPoint() {
-        showBarcodeLookupDialog("", false);
-    }
-
-    private void showBarcodeLookupDialog(String initialBarcode, boolean autoLookup) {
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(18), dp(8), dp(18), 0);
-
-        TextView status = text("", 15, barcodeStatusColor(), Typeface.BOLD);
-        refreshBarcodeStatus(status);
-        body.addView(barcodeAccessPanel(status));
-
-        EditText barcodeField = field("Barcode number", initialBarcode, InputType.TYPE_CLASS_NUMBER);
-        body.addView(barcodeField);
-
-        Button camera = button("Use camera scanner", COLOR_BLUE, COLOR_BLUE_SOFT);
-        camera.setOnClickListener(view -> requestBarcodeCameraAccess());
-        LinearLayout.LayoutParams cameraParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        cameraParams.topMargin = dp(12);
-        body.addView(camera, cameraParams);
-
-        Button premiumPlan = button("Premium plan", COLOR_BLUE, COLOR_BLUE_SOFT);
-        premiumPlan.setOnClickListener(view -> showPremiumOverviewDialog());
-        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        premiumParams.topMargin = dp(8);
-        body.addView(premiumPlan, premiumParams);
-
-        body.addView(fieldLabel("Manual lookup"));
-
-        Button lookup = button("Lookup barcode", COLOR_GOLD, COLOR_GOLD_SOFT);
-        LinearLayout.LayoutParams lookupParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        lookupParams.topMargin = dp(12);
-        body.addView(lookup, lookupParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(body);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Barcode lookup")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-
-        lookup.setOnClickListener(view -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
-        dialog.setOnShowListener(dialogInterface -> {
-            if (autoLookup) {
-                lookup.post(() -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
-            } else {
-                barcodeField.requestFocus();
+            @Override
+            public String currentTab() {
+                return MainActivity.this.currentTab;
             }
-        });
-        dialog.show();
-    }
 
-    private void requestBarcodeCameraAccess() {
-        if (!premiumManager.canUseBarcodeLookup()) {
-            showBarcodeLimitDialog();
-            return;
-        }
-
-        if (hasBarcodeCameraPermission()) {
-            launchBarcodeScanner();
-            return;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_BARCODE_CAMERA);
-        }
-    }
-
-    private boolean hasBarcodeCameraPermission() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void launchBarcodeScanner() {
-        try {
-            startActivityForResult(new Intent(this, BarcodeScannerActivity.class), REQUEST_BARCODE_SCAN);
-        } catch (Exception exception) {
-            Toast.makeText(this, "Camera scanner could not open.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void startBarcodeLookup(
-            AlertDialog dialog,
-            LinearLayout body,
-            EditText barcodeField,
-            Button lookup,
-            TextView status
-    ) {
-        String code = barcodeField.getText().toString().replaceAll("[^0-9]", "");
-        if (code.length() < 6) {
-            barcodeField.setError("Enter a barcode");
-            return;
-        }
-
-        if (!premiumManager.canUseBarcodeLookup()) {
-            showBarcodeLimitDialog();
-            refreshBarcodeStatus(status);
-            return;
-        }
-
-        barcodeField.setText(code);
-        lookup.setEnabled(false);
-        status.setText("Looking up barcode...");
-
-        new Thread(() -> {
-            try {
-                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(code, currentProfileId);
-                runOnUiThread(() -> {
-                    premiumManager.recordBarcodeLookup();
-                    renderOpenFoodFactsInspection(
-                            dialog,
-                            body,
-                            food,
-                            "OpenFoodFacts barcode " + code
-                    );
-                });
-            } catch (Exception exception) {
-                runOnUiThread(() -> {
-                    lookup.setEnabled(true);
-                    refreshBarcodeStatus(status);
-                    Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+            @Override
+            public Profile selectedProfile() {
+                return MainActivity.this.selectedProfile();
             }
-        }).start();
+
+            @Override
+            public View profileAvatar(Profile profile, int sizeDp, int fallbackColor, int textSp) {
+                return MainActivity.this.profileAvatar(profile, sizeDp, fallbackColor, textSp);
+            }
+
+            @Override
+            public int avatarWidthDp(Profile profile, int heightDp) {
+                return MainActivity.this.avatarWidthDp(profile, heightDp);
+            }
+
+            @Override
+            public int todayDoseCount() {
+                return medicationTodayFlow.doseCountFor(LocalDate.now(zoneId));
+            }
+
+            @Override
+            public String alertsLabel() {
+                return reminderAlertsFlow.alertsLabel();
+            }
+
+            @Override
+            public int alertColor() {
+                return reminderAlertsFlow.alertColor();
+            }
+
+            @Override
+            public void showQuickAdd(boolean nutritionMode) {
+                if (nutritionMode) {
+                    nutritionMealFlow.showLogFoodDialog("");
+                } else {
+                    medicationEditorFlow.show(null);
+                }
+            }
+
+            @Override
+            public void showProfiles() {
+                profileManagementFlow.showProfilesDialog();
+            }
+
+            @Override
+            public void selectAbout() {
+                currentTab = TAB_ABOUT;
+                renderShell();
+            }
+
+            @Override
+            public void selectMode(String mode) {
+                setAppMode(mode);
+            }
+
+            @Override
+            public void selectTab(String tab) {
+                currentTab = tab;
+                renderShell();
+            }
+
+            @Override
+            public void handleAlertsTap() {
+                reminderAlertsFlow.handleAlertsTap();
+            }
+        };
     }
 
-    private String barcodeStatusText() {
-        if (premiumManager.isPremiumActive()) {
-            return "Premium barcode scans are unlimited.";
-        }
+    private MedicationEditorFlow.Callbacks medicationEditorCallbacks() {
+        return new MedicationEditorFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
 
-        int remaining = premiumManager.barcodeLookupsRemaining();
-        if (remaining == 0) {
-            return "Free barcode lookups used.";
-        }
-
-        String lookupLabel = remaining == 1 ? "lookup" : "lookups";
-        return remaining + " free barcode " + lookupLabel + " remaining.";
+            @Override
+            public void onMedicationSaved() {
+                renderShell();
+            }
+        };
     }
 
-    private int barcodeStatusColor() {
-        if (premiumManager.isPremiumActive()) {
-            return COLOR_GREEN;
-        }
-
-        int remaining = premiumManager.barcodeLookupsRemaining();
-        if (remaining == 0) {
-            return COLOR_CORAL;
-        }
-        if (remaining <= 2) {
-            return COLOR_GOLD;
-        }
-        return COLOR_INK;
+    private MedicationManagementFlow.Callbacks medicationManagementCallbacks() {
+        return this::renderShell;
     }
 
-    private void refreshBarcodeStatus(TextView status) {
-        status.setText(barcodeStatusText());
-        status.setTextColor(barcodeStatusColor());
+    private MedicationTodayFlow.Callbacks medicationTodayCallbacks() {
+        return new MedicationTodayFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String selectedProfileName() {
+                return MainActivity.this.selectedProfileName();
+            }
+
+            @Override
+            public View sectionTitle(String title, String subtitle) {
+                return MainActivity.this.sectionTitle(title, subtitle);
+            }
+
+            @Override
+            public void emptyState(String message, String action, View.OnClickListener listener) {
+                MainActivity.this.emptyState(message, action, listener);
+            }
+
+            @Override
+            public void showMedicationEditor() {
+                medicationEditorFlow.show(null);
+            }
+
+            @Override
+            public void onDoseChanged() {
+                renderShell();
+            }
+        };
     }
 
-    private View barcodeAccessPanel(TextView status) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14), dp(12), dp(14), dp(12));
-        panel.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
+    private NutritionFoodEditorFlow.Callbacks nutritionFoodEditorCallbacks() {
+        return new NutritionFoodEditorFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
 
-        TextView label = text("Barcode access", 12, COLOR_MUTED, Typeface.BOLD);
-        panel.addView(label);
-
-        status.setPadding(0, dp(2), 0, dp(4));
-        panel.addView(status);
-
-        TextView note = text("Scan or type a UPC/EAN code to inspect nutrition facts before saving. Manual food entry stays available.", 12, COLOR_MUTED, Typeface.BOLD);
-        panel.addView(note);
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.bottomMargin = dp(10);
-        panel.setLayoutParams(params);
-        return panel;
+            @Override
+            public void onFoodChanged() {
+                renderShell();
+            }
+        };
     }
 
-    private void showBarcodeLimitDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Barcode limit reached")
-                .setMessage("Free barcode lookups are used up for this install. You can still add foods manually, or unlock premium for unlimited barcode scans once purchases are connected.")
-                .setNegativeButton("Close", null)
-                .setPositiveButton("Premium plan", (dialog, which) -> showPremiumOverviewDialog())
-                .show();
+    private NutritionMealFlow.Callbacks nutritionMealCallbacks() {
+        return new NutritionMealFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void showFoodEditor() {
+                nutritionFoodEditorFlow.show(null);
+            }
+
+            @Override
+            public void onNutritionChanged() {
+                renderShell();
+            }
+
+            @Override
+            public void onSavedMealLogged() {
+                currentTab = "nutrition_meals";
+                renderShell();
+            }
+        };
     }
 
-    private void renderNutritionBody() {
-        LocalDate today = LocalDate.now(zoneId);
-        long start = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        int waterOunces = store.getWaterOunces(currentProfileId, start, end);
-        List<WeightEntry> weights = store.getWeightEntries(currentProfileId, 10);
+    private NutritionTrackingFlow.Callbacks nutritionTrackingCallbacks() {
+        return new NutritionTrackingFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
 
-        content.addView(sectionTitle("Body", "Track water intake and weight"));
-        content.addView(waterCard(waterOunces, start, end));
-        content.addView(weightCard(weights));
+            @Override
+            public void showLogFoodDialog(String mealName) {
+                nutritionMealFlow.showLogFoodDialog(mealName);
+            }
+
+            @Override
+            public void onTrackingChanged() {
+                renderShell();
+            }
+        };
+    }
+
+    private OpenFoodFactsFlow.Callbacks openFoodFactsCallbacks() {
+        return new OpenFoodFactsFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void showFoodEditor(NutritionFood food) {
+                nutritionFoodEditorFlow.show(food);
+            }
+
+            @Override
+            public void onFoodSaved() {
+                renderShell();
+            }
+        };
+    }
+
+    private MedicationScreens.Callbacks medicationCallbacks() {
+        return new MedicationScreens.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String selectedProfileName() {
+                return MainActivity.this.selectedProfileName();
+            }
+
+            @Override
+            public View sectionTitle(String title, String subtitle) {
+                return MainActivity.this.sectionTitle(title, subtitle);
+            }
+
+            @Override
+            public void emptyState(String message, String action, View.OnClickListener listener) {
+                MainActivity.this.emptyState(message, action, listener);
+            }
+
+            @Override
+            public void showMedicationDialog(Medication medication) {
+                medicationEditorFlow.show(medication);
+            }
+
+            @Override
+            public void toggleMedication(Medication medication) {
+                medicationManagementFlow.toggleMedication(medication);
+            }
+
+            @Override
+            public void confirmDelete(Medication medication) {
+                medicationManagementFlow.confirmDelete(medication);
+            }
+
+            @Override
+            public void adjustInventory(Medication medication, int delta) {
+                medicationManagementFlow.adjustInventory(medication, delta);
+            }
+
+            @Override
+            public void showInventoryDialog(Medication medication) {
+                medicationManagementFlow.showInventoryDialog(medication);
+            }
+        };
+    }
+
+    private NutritionScreens.Callbacks nutritionCallbacks() {
+        return new NutritionScreens.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public String selectedProfileName() {
+                return MainActivity.this.selectedProfileName();
+            }
+
+            @Override
+            public String plural(long count, String singular, String plural) {
+                return MainActivity.this.plural(count, singular, plural);
+            }
+
+            @Override
+            public int distinctMealCount(List<MealFoodLog> logs) {
+                return MainActivity.this.distinctMealCount(logs);
+            }
+
+            @Override
+            public List<String> mealNamesForLogs(List<MealFoodLog> logs) {
+                return MainActivity.this.mealNamesForLogs(logs);
+            }
+
+            @Override
+            public List<MealFoodLog> logsForMeal(List<MealFoodLog> logs, String mealName) {
+                return MainActivity.this.logsForMeal(logs, mealName);
+            }
+
+            @Override
+            public NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
+                return MainActivity.this.totalsFromMealLogs(logs);
+            }
+
+            @Override
+            public View sectionTitle(String title, String subtitle) {
+                return MainActivity.this.sectionTitle(title, subtitle);
+            }
+
+            @Override
+            public void emptyState(String message, String action, View.OnClickListener listener) {
+                MainActivity.this.emptyState(message, action, listener);
+            }
+
+            @Override
+            public View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
+                return MainActivity.this.nutritionSummaryCard(calories, protein, carbs, fat);
+            }
+
+            @Override
+            public View dailyNutritionFactsCard(NutritionTotals totals) {
+                return MainActivity.this.dailyNutritionFactsCard(totals);
+            }
+
+            @Override
+            public View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
+                return MainActivity.this.mealTotalsCard(mealName, logs);
+            }
+
+            @Override
+            public View defaultMealsCard(List<String> mealDefaults) {
+                return nutritionTrackingFlow.defaultMealsCard(mealDefaults);
+            }
+
+            @Override
+            public View waterCard(int waterOunces, long startMillis, long endMillis) {
+                return nutritionTrackingFlow.waterCard(waterOunces, startMillis, endMillis);
+            }
+
+            @Override
+            public View weightCard(List<WeightEntry> weights) {
+                return nutritionTrackingFlow.weightCard(weights);
+            }
+
+            @Override
+            public View mealLogCard(MealFoodLog log) {
+                return nutritionMealFlow.mealLogCard(log);
+            }
+
+            @Override
+            public View savedMealCard(SavedMeal savedMeal) {
+                return nutritionMealFlow.savedMealCard(savedMeal);
+            }
+
+            @Override
+            public View foodCard(NutritionFood food) {
+                return MainActivity.this.foodCard(food);
+            }
+
+            @Override
+            public void showLogFoodDialog(String mealName) {
+                nutritionMealFlow.showLogFoodDialog(mealName);
+            }
+
+            @Override
+            public void showSavedMealDialog() {
+                nutritionMealFlow.showSavedMealDialog(null);
+            }
+
+            @Override
+            public void showFoodDialog() {
+                nutritionFoodEditorFlow.show(null);
+            }
+
+            @Override
+            public void showOpenFoodFactsSearchDialog() {
+                openFoodFactsFlow.showSearchDialog();
+            }
+
+            @Override
+            public void showBarcodeEntryPoint() {
+                MainActivity.this.barcodeLookupFlow.showEntryPoint();
+            }
+        };
+    }
+
+    private ProfileManagementFlow.Callbacks profileCallbacks() {
+        return new ProfileManagementFlow.Callbacks() {
+            @Override
+            public long currentProfileId() {
+                return MainActivity.this.currentProfileId;
+            }
+
+            @Override
+            public void setSelectedProfileId(long profileId) {
+                MainActivity.this.setSelectedProfileId(profileId);
+            }
+
+            @Override
+            public void renderShell() {
+                MainActivity.this.renderShell();
+            }
+
+            @Override
+            public String plural(long count, String singular, String plural) {
+                return MainActivity.this.plural(count, singular, plural);
+            }
+
+            @Override
+            public View profileAvatar(Profile profile, int sizeDp, int fallbackColor, int textSp) {
+                return MainActivity.this.profileAvatar(profile, sizeDp, fallbackColor, textSp);
+            }
+
+            @Override
+            public int avatarWidthDp(Profile profile, int heightDp) {
+                return MainActivity.this.avatarWidthDp(profile, heightDp);
+            }
+
+            @Override
+            public void chooseProfilePhoto(Profile profile) {
+                MainActivity.this.profilePhotoFlow.chooseProfilePhoto(profile);
+            }
+
+            @Override
+            public void showProfilePhotoEditor(
+                    Profile profile,
+                    String avatarUri,
+                    float zoom,
+                    float offsetX,
+                    float offsetY,
+                    float aspectRatio
+            ) {
+                MainActivity.this.profilePhotoFlow.showProfilePhotoEditor(profile, avatarUri, zoom, offsetX, offsetY, aspectRatio);
+            }
+        };
+    }
+
+    private ProfilePhotoFlow.Callbacks photoCallbacks() {
+        return new ProfilePhotoFlow.Callbacks() {
+            @Override
+            public long pendingPhotoProfileId() {
+                return MainActivity.this.pendingPhotoProfileId;
+            }
+
+            @Override
+            public void setPendingPhotoProfileId(long profileId) {
+                MainActivity.this.pendingPhotoProfileId = profileId;
+            }
+
+            @Override
+            public void clearPendingPhotoProfileId() {
+                MainActivity.this.pendingPhotoProfileId = 0;
+            }
+
+            @Override
+            public void renderShell() {
+                MainActivity.this.renderShell();
+            }
+        };
     }
 
     private View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
@@ -978,7 +691,7 @@ public class MainActivity extends Activity {
         card.addView(macros);
 
         Button addMeal = button("+ Log food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addMeal.setOnClickListener(view -> showLogFoodDialog(""));
+        addMeal.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(""));
         LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -1022,6 +735,21 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    private View nutritionFactRow(String label, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(6), 0, dp(6));
+
+        TextView labelView = text(label, 14, COLOR_INK, Typeface.BOLD);
+        row.addView(labelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView valueView = text(value, 14, COLOR_MUTED, Typeface.BOLD);
+        valueView.setGravity(Gravity.RIGHT);
+        row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        return row;
+    }
+
     private View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
         NutritionTotals totals = totalsFromMealLogs(logs);
 
@@ -1048,7 +776,7 @@ public class MainActivity extends Activity {
         card.addView(macros);
 
         Button logHere = button("+ Log here", COLOR_GREEN, COLOR_GREEN_SOFT);
-        logHere.setOnClickListener(view -> showLogFoodDialog(mealName));
+        logHere.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(mealName));
         LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -1064,203 +792,6 @@ public class MainActivity extends Activity {
             totals.addFood(log.food, log.servings);
         }
         return totals;
-    }
-
-    private View defaultMealsCard(List<String> mealDefaults) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text("Default meals", 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(plural(mealDefaults.size(), "saved meal name", "saved meal names"), 13, COLOR_MUTED, Typeface.BOLD));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showMealDefaultsDialog());
-        top.addView(edit, compactButtonParams());
-        card.addView(top);
-
-        for (String mealName : mealDefaults) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(10), 0, 0);
-
-            TextView name = text(mealName, 15, COLOR_INK, Typeface.BOLD);
-            row.addView(name, new LinearLayout.LayoutParams(0, dp(42), 1));
-
-            Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-            log.setOnClickListener(view -> showLogFoodDialog(mealName));
-            row.addView(log, new LinearLayout.LayoutParams(dp(88), dp(42)));
-            card.addView(row);
-        }
-        return card;
-    }
-
-    private View waterCard(int waterOunces, long startMillis, long endMillis) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text("Water", 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(waterOunces + " oz today", 14, COLOR_MUTED, Typeface.BOLD));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(waterOunces >= 64 ? "Hydrated" : "Track"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button addEight = button("+8 oz", COLOR_BLUE, COLOR_BLUE_SOFT);
-        addEight.setOnClickListener(view -> addWaterAndRefresh(8));
-        actions.addView(addEight, weightedActionParams());
-
-        Button addSixteen = button("+16 oz", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addSixteen.setOnClickListener(view -> addWaterAndRefresh(16));
-        actions.addView(addSixteen, weightedActionParams());
-
-        Button custom = button("Custom", COLOR_GOLD, COLOR_GOLD_SOFT);
-        custom.setOnClickListener(view -> showWaterDialog());
-        actions.addView(custom, weightedActionParams());
-        card.addView(actions);
-
-        if (waterOunces > 0) {
-            Button clear = button("Clear today", COLOR_CORAL, COLOR_CORAL_SOFT);
-            clear.setOnClickListener(view -> confirmClearWater(startMillis, endMillis));
-            LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(44)
-            );
-            clearParams.topMargin = dp(10);
-            card.addView(clear, clearParams);
-        }
-        return card;
-    }
-
-    private View weightCard(List<WeightEntry> weights) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text("Weight", 19, COLOR_INK, Typeface.BOLD));
-        if (weights.isEmpty()) {
-            details.addView(text("No weight logged yet", 14, COLOR_MUTED, Typeface.BOLD));
-        } else {
-            WeightEntry latest = weights.get(0);
-            details.addView(text(formatPounds(latest.pounds) + " lb latest", 14, COLOR_MUTED, Typeface.BOLD));
-            details.addView(text(formatShortDateTime(latest.loggedAt), 13, COLOR_MUTED, Typeface.NORMAL));
-        }
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        Button add = button("+ Weight", COLOR_GREEN, COLOR_GREEN_SOFT);
-        add.setOnClickListener(view -> showWeightDialog());
-        top.addView(add, compactButtonParams());
-        card.addView(top);
-
-        for (WeightEntry entry : weights) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(10), 0, 0);
-
-            LinearLayout label = new LinearLayout(this);
-            label.setOrientation(LinearLayout.VERTICAL);
-            label.addView(text(formatPounds(entry.pounds) + " lb", 15, COLOR_INK, Typeface.BOLD));
-            label.addView(text(formatShortDateTime(entry.loggedAt), 12, COLOR_MUTED, Typeface.NORMAL));
-            row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-            Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-            delete.setOnClickListener(view -> {
-                store.deleteWeightEntry(entry.id);
-                renderShell();
-            });
-            row.addView(delete, new LinearLayout.LayoutParams(dp(94), dp(40)));
-            card.addView(row);
-        }
-        return card;
-    }
-
-    private View mealLogCard(MealFoodLog log) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        NutritionFood food = log.food;
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(log.mealName, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text((food == null ? "Saved food" : food.displayName()) +
-                " - " + formatServings(log.servings) + " serving" + (Math.abs(log.servings - 1.0f) < 0.05f ? "" : "s"),
-                13,
-                COLOR_MUTED,
-                Typeface.BOLD));
-        details.addView(text(log.calories() + " cal - " +
-                formatGrams(log.proteinGrams()) + " protein - " +
-                formatGrams(log.totalCarbsGrams()) + " carbs - " +
-                formatGrams(log.totalFatGrams()) + " fat", 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(formatTime(log.eatenAt), 12, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(log.calories() > 0 ? log.calories() + " cal" : "Food"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showLogFoodDialog(log));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteMealLog(log));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private View savedMealCard(SavedMeal savedMeal) {
-        LinearLayout card = card();
-        List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
-        NutritionTotals totals = new NutritionTotals();
-        for (SavedMealItem item : items) {
-            totals.addFood(item.food, item.servings);
-        }
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(savedMeal.name, 19, COLOR_INK, Typeface.BOLD));
-        if (!savedMeal.notes.isEmpty()) {
-            details.addView(text(savedMeal.notes, 13, COLOR_MUTED, Typeface.BOLD));
-        }
-        details.addView(text(savedMealItemsSummary(items), 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-        log.setOnClickListener(view -> showLogSavedMealDialog(savedMeal));
-        actions.addView(log, weightedActionParams());
-
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showSavedMealDialog(savedMeal));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteSavedMeal(savedMeal));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
     }
 
     private View foodCard(NutritionFood food) {
@@ -1286,2055 +817,18 @@ public class MainActivity extends Activity {
 
         LinearLayout actions = actionRow();
         Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-        log.setOnClickListener(view -> showLogFoodDialog("", food.id));
+        log.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog("", food.id));
         actions.addView(log, weightedActionParams());
 
         Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showFoodDialog(food));
+        edit.setOnClickListener(view -> nutritionFoodEditorFlow.show(food));
         actions.addView(edit, weightedActionParams());
 
         Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteFood(food));
+        delete.setOnClickListener(view -> nutritionFoodEditorFlow.confirmDelete(food));
         actions.addView(delete, weightedActionParams());
         card.addView(actions);
         return card;
-    }
-
-    private View doseCard(DoseRow row) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView time = timePill(formatTime(row.scheduledAt));
-        LinearLayout.LayoutParams timeParams = new LinearLayout.LayoutParams(dp(82), dp(50));
-        timeParams.rightMargin = dp(12);
-        top.addView(time, timeParams);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(row.medication.name, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(row.medication.dosage, 14, COLOR_MUTED, Typeface.NORMAL));
-        if (!row.medication.instructions.isEmpty()) {
-            details.addView(text(row.medication.instructions, 14, COLOR_MUTED, Typeface.NORMAL));
-        }
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(rowStatus(row)));
-        card.addView(top);
-
-        if (row.status == null) {
-            LinearLayout actions = actionRow();
-            Button taken = button("Taken", COLOR_GREEN, COLOR_GREEN_SOFT);
-            taken.setOnClickListener(view -> markDose(row, MedicationStore.STATUS_TAKEN));
-            actions.addView(taken, weightedActionParams());
-
-            Button skip = button("Skip", COLOR_CORAL, COLOR_CORAL_SOFT);
-            skip.setOnClickListener(view -> markDose(row, MedicationStore.STATUS_SKIPPED));
-            actions.addView(skip, weightedActionParams());
-            card.addView(actions);
-        }
-
-        if (row.medication.isLowStock()) {
-            TextView lowStock = text("Low stock: " + row.medication.quantity + " left", 13, COLOR_CORAL, Typeface.BOLD);
-            lowStock.setPadding(0, dp(8), 0, 0);
-            card.addView(lowStock);
-        }
-
-        return card;
-    }
-
-    private View medicationCard(Medication medication) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(medication.name, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(medication.dosage, 14, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(medication.doseCountLabel() + " at " + medication.scheduleSummary(), 14, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(medication.repeatReminderLabel(), 13, COLOR_MUTED, Typeface.NORMAL));
-        if (!medication.instructions.isEmpty()) {
-            details.addView(text(medication.instructions, 14, COLOR_MUTED, Typeface.NORMAL));
-        }
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(medication.active ? "Active" : "Paused"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> showMedicationDialog(medication));
-        actions.addView(edit, weightedActionParams());
-
-        Button toggle = button(medication.active ? "Pause" : "Resume", COLOR_GREEN, COLOR_GREEN_SOFT);
-        toggle.setOnClickListener(view -> toggleMedication(medication));
-        actions.addView(toggle, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDelete(medication));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private View inventoryCard(Medication medication) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(medication.name, 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(medication.quantity + " remaining", 14, medication.isLowStock() ? COLOR_CORAL : COLOR_MUTED, Typeface.BOLD));
-        details.addView(text("Refill threshold: " + medication.refillThreshold, 13, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(medication.isLowStock() ? "Refill" : "OK"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button minus = button("-1", COLOR_CORAL, COLOR_CORAL_SOFT);
-        minus.setOnClickListener(view -> adjustInventory(medication, -1));
-        actions.addView(minus, weightedActionParams());
-
-        Button plus = button("+10", COLOR_GREEN, COLOR_GREEN_SOFT);
-        plus.setOnClickListener(view -> adjustInventory(medication, 10));
-        actions.addView(plus, weightedActionParams());
-
-        Button set = button("Set", COLOR_BLUE, COLOR_BLUE_SOFT);
-        set.setOnClickListener(view -> showInventoryDialog(medication));
-        actions.addView(set, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private void showProfilesDialog() {
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(18), dp(8), dp(18), 0);
-
-        final AlertDialog[] dialogRef = new AlertDialog[1];
-        for (Profile profile : store.getProfiles()) {
-            list.addView(profileManagementRow(profile, dialogRef));
-        }
-
-        Button addProfile = button("+ New profile", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addProfile.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            showAddProfileDialog();
-        });
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(12);
-        list.addView(addProfile, addParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(list);
-
-        dialogRef[0] = new AlertDialog.Builder(this)
-                .setTitle("Profiles")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-        dialogRef[0].show();
-    }
-
-    private View profileManagementRow(Profile profile, AlertDialog[] dialogRef) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(12));
-        row.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(20)));
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        boolean selected = profile.id == currentProfileId;
-        View avatar = profileAvatar(profile, 38, selected ? COLOR_GREEN : COLOR_BLUE, 14);
-        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(dp(avatarWidthDp(profile, 38)), dp(38));
-        avatarParams.rightMargin = dp(10);
-        top.addView(avatar, avatarParams);
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        labels.addView(text(profile.name, 17, COLOR_INK, Typeface.BOLD));
-        String subtitle = selected ? "Current profile" : plural(store.getMedicationCountForProfile(profile.id), "med", "meds");
-        labels.addView(text(subtitle, 12, COLOR_MUTED, Typeface.BOLD));
-        top.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        row.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button switchButton = button(selected ? "Current" : "Switch", selected ? COLOR_GREEN : COLOR_BLUE, selected ? COLOR_GREEN_SOFT : COLOR_BLUE_SOFT);
-        switchButton.setOnClickListener(view -> {
-            setSelectedProfileId(profile.id);
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            renderShell();
-        });
-        actions.addView(switchButton, weightedActionParams());
-
-        Button photo = button("Photo", COLOR_GOLD, COLOR_GOLD_SOFT);
-        photo.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            showProfilePhotoOptions(profile);
-        });
-        actions.addView(photo, weightedActionParams());
-        row.addView(actions);
-
-        LinearLayout editActions = actionRow();
-        Button rename = button("Rename", COLOR_BLUE, COLOR_BLUE_SOFT);
-        rename.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            showRenameProfileDialog(profile);
-        });
-        editActions.addView(rename, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            confirmDeleteProfile(profile);
-        });
-        editActions.addView(delete, weightedActionParams());
-        row.addView(editActions);
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(8);
-        row.setLayoutParams(params);
-        return row;
-    }
-
-    private void showProfilePhotoOptions(Profile profile) {
-        if (!profile.hasAvatar()) {
-            chooseProfilePhoto(profile);
-            return;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle(profile.name + " photo")
-                .setItems(new CharSequence[]{"Edit framing", "Change photo", "Remove photo"}, (dialog, which) -> {
-                    if (which == 0) {
-                        showProfilePhotoEditor(
-                                profile,
-                                profile.avatarUri,
-                                profile.avatarZoom,
-                                profile.avatarOffsetX,
-                                profile.avatarOffsetY,
-                                profile.avatarAspectRatio
-                        );
-                    } else if (which == 1) {
-                        chooseProfilePhoto(profile);
-                    } else {
-                        store.clearProfileAvatar(profile.id);
-                        Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
-                        renderShell();
-                    }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
-    private void chooseProfilePhoto(Profile profile) {
-        pendingPhotoProfileId = profile.id;
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("image/*");
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        try {
-            startActivityForResult(intent, REQUEST_PROFILE_PHOTO);
-        } catch (Exception exception) {
-            pendingPhotoProfileId = 0;
-            Toast.makeText(this, "No photo picker is available.", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void showProfilePhotoEditor(
-            Profile profile,
-            String avatarUri,
-            float zoom,
-            float offsetX,
-            float offsetY,
-            float aspectRatio
-    ) {
-        Bitmap bitmap = loadBitmap(avatarUri);
-        if (bitmap == null) {
-            Toast.makeText(this, "That photo could not be opened.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        ProfilePhotoEditorView editor = new ProfilePhotoEditorView(bitmap);
-        editor.setFrame(zoom, offsetX, offsetY, aspectRatio);
-        LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(280)
-        );
-        form.addView(editor, editorParams);
-
-        TextView zoomLabel = fieldLabel("Zoom");
-        form.addView(zoomLabel);
-        SeekBar zoomSlider = new SeekBar(this);
-        zoomSlider.setMax(200);
-        zoomSlider.setProgress(Math.round((editor.getZoom() - 1.0f) * 100.0f));
-        zoomSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                editor.setZoom(1.0f + progress / 100.0f);
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-        editor.setOnFrameChangedListener(() -> {
-            int progress = Math.round((editor.getZoom() - 1.0f) * 100.0f);
-            if (zoomSlider.getProgress() != progress) {
-                zoomSlider.setProgress(progress);
-            }
-        });
-        form.addView(zoomSlider);
-
-        form.addView(fieldLabel("Frame"));
-        LinearLayout aspectActions = actionRow();
-        Button square = button("Square", COLOR_GREEN, COLOR_GREEN_SOFT);
-        square.setOnClickListener(view -> editor.setAspectRatio(1.0f));
-        aspectActions.addView(square, weightedActionParams());
-
-        Button portrait = button("Portrait", COLOR_BLUE, COLOR_BLUE_SOFT);
-        portrait.setOnClickListener(view -> editor.setAspectRatio(0.8f));
-        aspectActions.addView(portrait, weightedActionParams());
-
-        Button wide = button("Wide", COLOR_GOLD, COLOR_GOLD_SOFT);
-        wide.setOnClickListener(view -> editor.setAspectRatio(1.6f));
-        aspectActions.addView(wide, weightedActionParams());
-        form.addView(aspectActions);
-
-        form.addView(fieldLabel("Position"));
-        LinearLayout horizontalActions = actionRow();
-        Button left = button("Left", COLOR_BLUE, COLOR_BLUE_SOFT);
-        left.setOnClickListener(view -> editor.nudge(-0.12f, 0.0f));
-        horizontalActions.addView(left, weightedActionParams());
-
-        Button center = button("Center", COLOR_GREEN, COLOR_GREEN_SOFT);
-        center.setOnClickListener(view -> editor.center());
-        horizontalActions.addView(center, weightedActionParams());
-
-        Button right = button("Right", COLOR_BLUE, COLOR_BLUE_SOFT);
-        right.setOnClickListener(view -> editor.nudge(0.12f, 0.0f));
-        horizontalActions.addView(right, weightedActionParams());
-        form.addView(horizontalActions);
-
-        LinearLayout verticalActions = actionRow();
-        Button up = button("Up", COLOR_BLUE, COLOR_BLUE_SOFT);
-        up.setOnClickListener(view -> editor.nudge(0.0f, -0.12f));
-        verticalActions.addView(up, weightedActionParams());
-
-        Button down = button("Down", COLOR_BLUE, COLOR_BLUE_SOFT);
-        down.setOnClickListener(view -> editor.nudge(0.0f, 0.12f));
-        verticalActions.addView(down, weightedActionParams());
-        form.addView(verticalActions);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Frame " + profile.name)
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                store.updateProfileAvatar(
-                        profile.id,
-                        avatarUri,
-                        editor.getZoom(),
-                        editor.getOffsetX(),
-                        editor.getOffsetY(),
-                        editor.getAspectRatio()
-                );
-                Toast.makeText(this, "Profile photo updated.", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showRenameProfileDialog(Profile profile) {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText nameField = field("Profile name", profile.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        form.addView(nameField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Rename profile")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-                store.renameProfile(profile.id, name);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void confirmDeleteProfile(Profile profile) {
-        if (store.getProfiles().size() <= 1) {
-            Toast.makeText(this, "Keep at least one profile.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        int medicationCount = store.getMedicationCountForProfile(profile.id);
-        String message = "This removes " + profile.name + " and " +
-                plural(medicationCount, "medication", "medications") +
-                " with dose history from this phone.";
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + profile.name + "?")
-                .setMessage(message)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    for (Medication medication : store.getAllMedications(profile.id)) {
-                        ReminderScheduler.cancel(this, medication.id);
-                    }
-                    boolean deleted = store.deleteProfile(profile.id);
-                    if (deleted && currentProfileId == profile.id) {
-                        List<Profile> profiles = store.getProfiles();
-                        if (!profiles.isEmpty()) {
-                            setSelectedProfileId(profiles.get(0).id);
-                        }
-                    }
-                    ReminderScheduler.scheduleAll(this);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void showAddProfileDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText nameField = field("Person's name", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        form.addView(nameField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("New profile")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Create", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button create = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            create.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-                long profileId = store.saveProfile(name);
-                setSelectedProfileId(profileId);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showMedicationDialog(Medication existing) {
-        Medication medication = existing == null ? Medication.empty() : new Medication(
-                existing.id,
-                existing.profileId,
-                existing.name,
-                existing.dosage,
-                existing.instructions,
-                existing.firstDoseMinutes,
-                existing.dosesPerDay,
-                existing.doseMinutes(),
-                existing.quantity,
-                existing.refillThreshold,
-                existing.repeatReminderMinutes,
-                existing.active,
-                existing.createdAt
-        );
-        if (existing == null) {
-            medication.profileId = currentProfileId;
-        }
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(10), dp(18), 0);
-
-        EditText nameField = field("Medication name", medication.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText dosageField = field("Dosage", medication.dosage, InputType.TYPE_CLASS_TEXT);
-        EditText instructionsField = field("Instructions", medication.instructions, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-
-        ArrayList<Integer> selectedDoseMinutes = new ArrayList<>(medication.doseMinutes());
-        TextView frequencySummary = text("", 13, COLOR_MUTED, Typeface.BOLD);
-        LinearLayout doseTimesList = new LinearLayout(this);
-        doseTimesList.setOrientation(LinearLayout.VERTICAL);
-        final Runnable[] renderDoseTimes = new Runnable[1];
-        renderDoseTimes[0] = () -> renderDoseTimeRows(doseTimesList, frequencySummary, selectedDoseMinutes, renderDoseTimes[0]);
-        renderDoseTimes[0].run();
-
-        int[] selectedRepeatReminderMinutes = new int[]{medication.repeatReminderMinutes};
-        TextView repeatSummary = text("", 13, COLOR_MUTED, Typeface.BOLD);
-        LinearLayout repeatOptions = new LinearLayout(this);
-        repeatOptions.setOrientation(LinearLayout.VERTICAL);
-        final Runnable[] renderRepeatOptions = new Runnable[1];
-        renderRepeatOptions[0] = () -> renderRepeatReminderOptions(
-                repeatOptions,
-                repeatSummary,
-                selectedRepeatReminderMinutes,
-                renderRepeatOptions[0]
-        );
-        renderRepeatOptions[0].run();
-
-        Button addDoseTime = button("+ Dose time", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addDoseTime.setOnClickListener(view -> {
-            if (selectedDoseMinutes.size() >= Medication.MAX_DOSES_PER_DAY) {
-                Toast.makeText(this, "Maximum is " + Medication.MAX_DOSES_PER_DAY + " doses per day.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            selectedDoseMinutes.add(nextSuggestedDoseTime(selectedDoseMinutes));
-            renderDoseTimes[0].run();
-        });
-
-        EditText quantityField = field("Current quantity", existing == null ? "" : String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
-        EditText thresholdField = field("Refill threshold", existing == null ? "" : String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
-        CheckBox activeBox = new CheckBox(this);
-        activeBox.setText("Active reminders");
-        activeBox.setTextColor(COLOR_INK);
-        activeBox.setTextSize(15);
-        activeBox.setChecked(medication.active);
-
-        form.addView(nameField);
-        form.addView(dosageField);
-        form.addView(instructionsField);
-        form.addView(fieldLabel("Frequency"));
-        form.addView(frequencySummary);
-        form.addView(doseTimesList);
-        LinearLayout.LayoutParams addDoseParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addDoseParams.topMargin = dp(8);
-        form.addView(addDoseTime, addDoseParams);
-        form.addView(fieldLabel("Repeat alerts"));
-        form.addView(repeatSummary);
-        form.addView(repeatOptions);
-        form.addView(quantityField);
-        form.addView(thresholdField);
-        form.addView(activeBox);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Add medication" : "Edit medication")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                String dosage = dosageField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-                if (dosage.isEmpty()) {
-                    dosageField.setError("Required");
-                    return;
-                }
-
-                Medication toSave = new Medication(
-                        medication.id,
-                        medication.profileId,
-                        name,
-                        dosage,
-                        instructionsField.getText().toString(),
-                        selectedDoseMinutes.get(0),
-                        selectedDoseMinutes.size(),
-                        selectedDoseMinutes,
-                        parseInt(quantityField, 0),
-                        parseInt(thresholdField, 0),
-                        selectedRepeatReminderMinutes[0],
-                        activeBox.isChecked(),
-                        medication.createdAt
-                );
-
-                store.saveMedication(toSave);
-                if (toSave.active) {
-                    ReminderScheduler.scheduleNext(this, toSave);
-                } else {
-                    ReminderScheduler.cancel(this, toSave.id);
-                }
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
-    }
-
-    private void showInventoryDialog(Medication medication) {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText quantityField = field("Current quantity", String.valueOf(medication.quantity), InputType.TYPE_CLASS_NUMBER);
-        EditText thresholdField = field("Refill threshold", String.valueOf(medication.refillThreshold), InputType.TYPE_CLASS_NUMBER);
-        form.addView(quantityField);
-        form.addView(thresholdField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Update stock")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                medication.quantity = parseInt(quantityField, 0);
-                medication.refillThreshold = parseInt(thresholdField, 0);
-                store.saveMedication(medication);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showLogFoodDialog(String presetName) {
-        showLogFoodDialog(null, presetName, 0);
-    }
-
-    private void showSavedMealDialog(SavedMeal existing) {
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-        if (foods.isEmpty()) {
-            Toast.makeText(this, "Create a food before saving a meal.", Toast.LENGTH_SHORT).show();
-            showFoodDialog(null);
-            return;
-        }
-
-        SavedMeal savedMeal = existing == null
-                ? new SavedMeal(0, currentProfileId, "", "", System.currentTimeMillis())
-                : existing;
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        EditText nameField = field("Saved meal name", savedMeal.name.equals("Saved meal") && existing == null ? "" : savedMeal.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText notesField = field("Notes", savedMeal.notes, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        form.addView(fieldLabel("Meal"));
-        form.addView(nameField);
-        form.addView(notesField);
-
-        LinearLayout itemsContainer = new LinearLayout(this);
-        itemsContainer.setOrientation(LinearLayout.VERTICAL);
-        ArrayList<SavedMealItemDraft> drafts = savedMealDraftsFromItems(existing == null
-                ? new ArrayList<>()
-                : store.getSavedMealItems(existing.id));
-        if (drafts.isEmpty()) {
-            drafts.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
-        }
-        renderSavedMealItemRows(itemsContainer, foods, drafts);
-
-        form.addView(fieldLabel("Foods"));
-        form.addView(itemsContainer);
-
-        Button addFood = button("+ Food item", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addFood.setOnClickListener(view -> {
-            ArrayList<SavedMealItemDraft> updated = savedMealDraftsFromRows(itemsContainer, foods);
-            updated.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
-            renderSavedMealItemRows(itemsContainer, foods, updated);
-        });
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(10);
-        form.addView(addFood, addParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Create saved meal" : "Edit saved meal")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-
-                ArrayList<SavedMealItem> items = savedMealItemsFromRows(itemsContainer, foods);
-                if (items == null) {
-                    return;
-                }
-                if (items.isEmpty()) {
-                    Toast.makeText(this, "Add at least one food.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                store.saveSavedMeal(new SavedMeal(
-                        savedMeal.id,
-                        currentProfileId,
-                        name,
-                        notesField.getText().toString(),
-                        savedMeal.createdAt
-                ), items);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showLogSavedMealDialog(SavedMeal savedMeal) {
-        List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
-        if (items.isEmpty()) {
-            Toast.makeText(this, "Add foods before logging this saved meal.", Toast.LENGTH_SHORT).show();
-            showSavedMealDialog(savedMeal);
-            return;
-        }
-
-        NutritionTotals totals = new NutritionTotals();
-        for (SavedMealItem item : items) {
-            totals.addFood(item.food, item.servings);
-        }
-
-        long baseTime = System.currentTimeMillis();
-        String defaultMealName = defaultMealName();
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        form.addView(fieldLabel("Saved meal"));
-        form.addView(text(savedMeal.name, 18, COLOR_INK, Typeface.BOLD));
-        form.addView(text(savedMealItemsSummary(items), 13, COLOR_MUTED, Typeface.NORMAL));
-        form.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.BOLD));
-
-        EditText mealNameField = field("Meal name", defaultMealName, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-
-        final boolean[] customMealTime = {false};
-        final int[] mealMinutes = {minuteOfDay(baseTime)};
-        LinearLayout timeActions = actionRow();
-        Button timeButton = button("Time: now", COLOR_BLUE, COLOR_BLUE_SOFT);
-        timeButton.setOnClickListener(view -> showMealTimePicker(timeButton, mealMinutes, customMealTime));
-        timeActions.addView(timeButton, weightedActionParams());
-
-        Button nowButton = button("Use now", COLOR_GREEN, COLOR_GREEN_SOFT);
-        nowButton.setOnClickListener(view -> {
-            customMealTime[0] = false;
-            mealMinutes[0] = minuteOfDay(System.currentTimeMillis());
-            timeButton.setText("Time: now");
-        });
-        timeActions.addView(nowButton, weightedActionParams());
-
-        form.addView(fieldLabel("Meal log"));
-        form.addView(mealNameField);
-        form.addView(fieldLabel("Time eaten"));
-        form.addView(timeActions);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Log saved meal")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Log", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String mealName = mealNameField.getText().toString().trim();
-                if (mealName.isEmpty()) {
-                    mealNameField.setError("Required");
-                    return;
-                }
-
-                long eatenAt = customMealTime[0]
-                        ? millisForMealTime(baseTime, mealMinutes[0])
-                        : System.currentTimeMillis();
-                for (SavedMealItem item : items) {
-                    if (item.food == null) {
-                        continue;
-                    }
-                    store.saveMealFoodLog(new MealFoodLog(
-                            0,
-                            currentProfileId,
-                            item.food.id,
-                            mealName,
-                            item.servings,
-                            eatenAt,
-                            item.food
-                    ));
-                }
-
-                Toast.makeText(this, "Logged " + savedMeal.name, Toast.LENGTH_SHORT).show();
-                currentTab = "nutrition_meals";
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void renderSavedMealItemRows(
-            LinearLayout container,
-            List<NutritionFood> foods,
-            ArrayList<SavedMealItemDraft> drafts
-    ) {
-        container.removeAllViews();
-        if (drafts.isEmpty()) {
-            drafts.add(new SavedMealItemDraft(foods.get(0).id, 0.0f));
-        }
-
-        ArrayList<String> foodNames = new ArrayList<>();
-        for (NutritionFood food : foods) {
-            foodNames.add(food.displayName());
-        }
-
-        for (int i = 0; i < drafts.size(); i++) {
-            int index = i;
-            SavedMealItemDraft draft = drafts.get(i);
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(dp(12), dp(10), dp(12), dp(12));
-            row.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            rowParams.topMargin = dp(8);
-            row.setLayoutParams(rowParams);
-
-            Spinner foodSpinner = new Spinner(this);
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, foodNames);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            foodSpinner.setAdapter(adapter);
-            foodSpinner.setSelection(savedMealFoodIndex(foods, draft.foodId));
-            foodSpinner.setPadding(dp(10), 0, dp(10), 0);
-            foodSpinner.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-            LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(48)
-            );
-            row.addView(foodSpinner, spinnerParams);
-
-            EditText servingsField = field("Servings used", draft.servings > 0.0f ? formatFloatInput(draft.servings) : "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-            row.addView(servingsField);
-
-            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
-            remove.setEnabled(drafts.size() > 1);
-            remove.setAlpha(drafts.size() > 1 ? 1.0f : 0.45f);
-            remove.setOnClickListener(view -> {
-                ArrayList<SavedMealItemDraft> updated = savedMealDraftsFromRows(container, foods);
-                if (updated.size() <= 1) {
-                    Toast.makeText(this, "Keep at least one food.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                updated.remove(index);
-                renderSavedMealItemRows(container, foods, updated);
-            });
-            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(42)
-            );
-            removeParams.topMargin = dp(8);
-            row.addView(remove, removeParams);
-
-            row.setTag(new SavedMealItemRowControls(foodSpinner, servingsField));
-            container.addView(row);
-        }
-    }
-
-    private ArrayList<SavedMealItemDraft> savedMealDraftsFromItems(List<SavedMealItem> items) {
-        ArrayList<SavedMealItemDraft> drafts = new ArrayList<>();
-        for (SavedMealItem item : items) {
-            long foodId = item.foodId > 0 ? item.foodId : item.food == null ? 0 : item.food.id;
-            if (foodId > 0) {
-                drafts.add(new SavedMealItemDraft(foodId, item.servings));
-            }
-        }
-        return drafts;
-    }
-
-    private ArrayList<SavedMealItemDraft> savedMealDraftsFromRows(LinearLayout container, List<NutritionFood> foods) {
-        ArrayList<SavedMealItemDraft> drafts = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-            View child = container.getChildAt(i);
-            if (!(child.getTag() instanceof SavedMealItemRowControls)) {
-                continue;
-            }
-            SavedMealItemRowControls controls = (SavedMealItemRowControls) child.getTag();
-            int selectedIndex = controls.foodSpinner.getSelectedItemPosition();
-            if (selectedIndex < 0 || selectedIndex >= foods.size()) {
-                continue;
-            }
-            drafts.add(new SavedMealItemDraft(
-                    foods.get(selectedIndex).id,
-                    parseFloat(controls.servingsField, 0.0f)
-            ));
-        }
-        return drafts;
-    }
-
-    private ArrayList<SavedMealItem> savedMealItemsFromRows(LinearLayout container, List<NutritionFood> foods) {
-        ArrayList<SavedMealItem> items = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-            View child = container.getChildAt(i);
-            if (!(child.getTag() instanceof SavedMealItemRowControls)) {
-                continue;
-            }
-            SavedMealItemRowControls controls = (SavedMealItemRowControls) child.getTag();
-            int selectedIndex = controls.foodSpinner.getSelectedItemPosition();
-            if (selectedIndex < 0 || selectedIndex >= foods.size()) {
-                continue;
-            }
-            float servings = parseFloat(controls.servingsField, 0.0f);
-            if (servings <= 0.0f) {
-                controls.servingsField.setError("Enter servings");
-                return null;
-            }
-
-            NutritionFood food = foods.get(selectedIndex);
-            items.add(new SavedMealItem(0, 0, food.id, servings, items.size(), food));
-        }
-        return items;
-    }
-
-    private int savedMealFoodIndex(List<NutritionFood> foods, long foodId) {
-        for (int i = 0; i < foods.size(); i++) {
-            if (foods.get(i).id == foodId) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    private void showLogFoodDialog(String presetName, long selectedFoodId) {
-        showLogFoodDialog(null, presetName, selectedFoodId);
-    }
-
-    private void showLogFoodDialog(MealFoodLog existing) {
-        showLogFoodDialog(existing, existing == null ? "" : existing.mealName, existing == null ? 0 : existing.foodId);
-    }
-
-    private void showLogFoodDialog(MealFoodLog existing, String presetName, long selectedFoodId) {
-        List<NutritionFood> foods = store.getNutritionFoods(currentProfileId);
-        if (foods.isEmpty()) {
-            Toast.makeText(this, "Create a food before logging it.", Toast.LENGTH_SHORT).show();
-            showFoodDialog(null);
-            return;
-        }
-
-        long targetFoodId = existing == null ? selectedFoodId : existing.foodId;
-        int selectedIndex = 0;
-        ArrayList<String> foodNames = new ArrayList<>();
-        for (int i = 0; i < foods.size(); i++) {
-            NutritionFood food = foods.get(i);
-            foodNames.add(food.displayName());
-            if (food.id == targetFoodId) {
-                selectedIndex = i;
-            }
-        }
-
-        long baseTime = existing == null ? System.currentTimeMillis() : existing.eatenAt;
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        form.addView(fieldLabel("Food"));
-        Spinner foodSpinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, foodNames);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        foodSpinner.setAdapter(adapter);
-        foodSpinner.setSelection(selectedIndex);
-        foodSpinner.setPadding(dp(10), 0, dp(10), 0);
-        foodSpinner.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(48)
-        );
-        spinnerParams.topMargin = dp(8);
-        form.addView(foodSpinner, spinnerParams);
-
-        EditText mealNameField = field("Meal name", presetName, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText servingsField = field("Servings eaten", existing == null ? "" : formatFloatInput(existing.servings), InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-
-        final boolean[] customMealTime = {existing != null};
-        final int[] mealMinutes = {minuteOfDay(baseTime)};
-        LinearLayout timeActions = actionRow();
-        Button timeButton = button(customMealTime[0] ? "Ate at " + Medication.formatMinutes(mealMinutes[0]) : "Time: now", COLOR_BLUE, COLOR_BLUE_SOFT);
-        timeButton.setOnClickListener(view -> showMealTimePicker(timeButton, mealMinutes, customMealTime));
-        timeActions.addView(timeButton, weightedActionParams());
-
-        Button nowButton = button("Use now", COLOR_GREEN, COLOR_GREEN_SOFT);
-        nowButton.setOnClickListener(view -> {
-            customMealTime[0] = false;
-            mealMinutes[0] = minuteOfDay(System.currentTimeMillis());
-            timeButton.setText("Time: now");
-        });
-        timeActions.addView(nowButton, weightedActionParams());
-
-        form.addView(mealNameField);
-        form.addView(servingsField);
-        form.addView(fieldLabel("Time eaten"));
-        form.addView(timeActions);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Log food" : "Edit food log")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                float servings = parseFloat(servingsField, 0.0f);
-                if (servings <= 0.0f) {
-                    servingsField.setError("Enter servings");
-                    return;
-                }
-
-                NutritionFood food = foods.get(foodSpinner.getSelectedItemPosition());
-                String mealName = mealNameField.getText().toString().trim();
-                if (mealName.isEmpty()) {
-                    mealName = "Meal";
-                }
-
-                store.saveMealFoodLog(new MealFoodLog(
-                        existing == null ? 0 : existing.id,
-                        currentProfileId,
-                        food.id,
-                        mealName,
-                        servings,
-                        customMealTime[0] ? millisForMealTime(baseTime, mealMinutes[0]) : System.currentTimeMillis(),
-                        food
-                ));
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showFoodDialog(NutritionFood existing) {
-        NutritionFood food = existing == null
-                ? new NutritionFood(
-                        0,
-                        currentProfileId,
-                        "",
-                        "",
-                        "",
-                        1.0f,
-                        0,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        0.0f,
-                        System.currentTimeMillis()
-                )
-                : existing;
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        int decimalInput = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL;
-        EditText brandField = field("Brand", food.brand, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText nameField = field("Food name", food.name, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        EditText servingSizeField = field("Serving size", food.servingSize, InputType.TYPE_CLASS_TEXT);
-        boolean prefillNutrition = existing != null;
-        EditText servingsPerContainerField = field("Servings per container", prefillNutrition ? formatFloatInput(food.servingsPerContainer) : "", decimalInput);
-        EditText caloriesField = field("Calories", prefillNutrition ? String.valueOf(food.calories) : "", InputType.TYPE_CLASS_NUMBER);
-        EditText totalFatField = field("Total fat (g)", prefillNutrition ? formatFloatInput(food.totalFatGrams) : "", decimalInput);
-        EditText saturatedFatField = field("Saturated fat (g)", prefillNutrition ? formatFloatInput(food.saturatedFatGrams) : "", decimalInput);
-        EditText transFatField = field("Trans fat (g)", prefillNutrition ? formatFloatInput(food.transFatGrams) : "", decimalInput);
-        EditText cholesterolField = field("Cholesterol (mg)", prefillNutrition ? formatFloatInput(food.cholesterolMg) : "", decimalInput);
-        EditText sodiumField = field("Sodium (mg)", prefillNutrition ? formatFloatInput(food.sodiumMg) : "", decimalInput);
-        EditText carbsField = field("Total carbs (g)", prefillNutrition ? formatFloatInput(food.totalCarbsGrams) : "", decimalInput);
-        EditText fiberField = field("Fiber (g)", prefillNutrition ? formatFloatInput(food.fiberGrams) : "", decimalInput);
-        EditText totalSugarsField = field("Total sugars (g)", prefillNutrition ? formatFloatInput(food.totalSugarsGrams) : "", decimalInput);
-        EditText addedSugarsField = field("Added sugars (g)", prefillNutrition ? formatFloatInput(food.addedSugarsGrams) : "", decimalInput);
-        EditText proteinField = field("Protein (g)", prefillNutrition ? formatFloatInput(food.proteinGrams) : "", decimalInput);
-        EditText vitaminDField = field("Vitamin D (mcg)", prefillNutrition ? formatFloatInput(food.vitaminDMcg) : "", decimalInput);
-        EditText calciumField = field("Calcium (mg)", prefillNutrition ? formatFloatInput(food.calciumMg) : "", decimalInput);
-        EditText ironField = field("Iron (mg)", prefillNutrition ? formatFloatInput(food.ironMg) : "", decimalInput);
-        EditText potassiumField = field("Potassium (mg)", prefillNutrition ? formatFloatInput(food.potassiumMg) : "", decimalInput);
-
-        form.addView(fieldLabel("Food"));
-        form.addView(brandField);
-        form.addView(nameField);
-        form.addView(fieldLabel("Serving"));
-        form.addView(servingSizeField);
-        form.addView(servingsPerContainerField);
-        form.addView(fieldLabel("Nutrition facts per serving"));
-        form.addView(caloriesField);
-        form.addView(totalFatField);
-        form.addView(saturatedFatField);
-        form.addView(transFatField);
-        form.addView(cholesterolField);
-        form.addView(sodiumField);
-        form.addView(carbsField);
-        form.addView(fiberField);
-        form.addView(totalSugarsField);
-        form.addView(addedSugarsField);
-        form.addView(proteinField);
-        form.addView(fieldLabel("Vitamins and minerals"));
-        form.addView(vitaminDField);
-        form.addView(calciumField);
-        form.addView(ironField);
-        form.addView(potassiumField);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Add food" : "Edit food")
-                .setView(scrollView)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                String name = nameField.getText().toString().trim();
-                if (name.isEmpty()) {
-                    nameField.setError("Required");
-                    return;
-                }
-
-                String servingSize = servingSizeField.getText().toString().trim();
-                if (servingSize.isEmpty()) {
-                    servingSizeField.setError("Required");
-                    return;
-                }
-
-                store.saveNutritionFood(new NutritionFood(
-                        food.id,
-                        currentProfileId,
-                        brandField.getText().toString(),
-                        name,
-                        servingSize,
-                        parseFloat(servingsPerContainerField, 0.0f),
-                        parseInt(caloriesField, 0),
-                        parseFloat(totalFatField, 0.0f),
-                        parseFloat(saturatedFatField, 0.0f),
-                        parseFloat(transFatField, 0.0f),
-                        parseFloat(cholesterolField, 0.0f),
-                        parseFloat(sodiumField, 0.0f),
-                        parseFloat(carbsField, 0.0f),
-                        parseFloat(fiberField, 0.0f),
-                        parseFloat(totalSugarsField, 0.0f),
-                        parseFloat(addedSugarsField, 0.0f),
-                        parseFloat(proteinField, 0.0f),
-                        parseFloat(vitaminDField, 0.0f),
-                        parseFloat(calciumField, 0.0f),
-                        parseFloat(ironField, 0.0f),
-                        parseFloat(potassiumField, 0.0f),
-                        food.createdAt
-                ));
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void showOpenFoodFactsSearchDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        EditText queryField = field("Search food name", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        form.addView(queryField);
-
-        Button search = button("Search OpenFoodFacts", COLOR_BLUE, COLOR_BLUE_SOFT);
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        searchParams.topMargin = dp(10);
-        form.addView(search, searchParams);
-
-        TextView status = text("Ready to search.", 13, COLOR_MUTED, Typeface.BOLD);
-        status.setPadding(0, dp(12), 0, dp(4));
-        form.addView(status);
-
-        LinearLayout results = new LinearLayout(this);
-        results.setOrientation(LinearLayout.VERTICAL);
-        form.addView(results);
-
-        Button loadMore = button("Load more", COLOR_GREEN, COLOR_GREEN_SOFT);
-        loadMore.setVisibility(View.GONE);
-        LinearLayout.LayoutParams loadMoreParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        loadMoreParams.topMargin = dp(12);
-        form.addView(loadMore, loadMoreParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(form);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Find food")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-
-        final int[] nextPage = {1};
-        final String[] activeQuery = {""};
-        search.setOnClickListener(view -> startOpenFoodFactsSearch(scrollView, queryField, search, loadMore, status, results, nextPage, activeQuery, true));
-        loadMore.setOnClickListener(view -> startOpenFoodFactsSearch(scrollView, queryField, search, loadMore, status, results, nextPage, activeQuery, false));
-
-        dialog.setOnShowListener(dialogInterface -> queryField.requestFocus());
-        dialog.show();
-    }
-
-    private void startOpenFoodFactsSearch(
-            ScrollView scrollView,
-            EditText queryField,
-            Button search,
-            Button loadMore,
-            TextView status,
-            LinearLayout results,
-            int[] nextPage,
-            String[] activeQuery,
-            boolean reset
-    ) {
-        String typedQuery = queryField.getText().toString().trim();
-        if (reset) {
-            activeQuery[0] = typedQuery;
-        }
-        String query = reset ? typedQuery : activeQuery[0];
-        if (query.length() < 2) {
-            queryField.setError("Enter a food name");
-            return;
-        }
-
-        int page = reset ? 1 : Math.max(1, nextPage[0]);
-        int previousScrollY = reset ? 0 : scrollView.getScrollY();
-        search.setEnabled(false);
-        loadMore.setEnabled(false);
-        status.setText(reset ? "Searching OpenFoodFacts..." : "Loading more results...");
-        if (reset) {
-            nextPage[0] = 1;
-            results.removeAllViews();
-            loadMore.setVisibility(View.GONE);
-        }
-
-        new Thread(() -> {
-            try {
-                List<OpenFoodFactsClient.SearchResult> found = new OpenFoodFactsClient().searchFoods(query, page);
-                runOnUiThread(() -> {
-                    search.setEnabled(true);
-                    boolean hasMore = found.size() >= OpenFoodFactsClient.PAGE_SIZE;
-                    if (found.isEmpty() && reset) {
-                        status.setText("No matching foods found.");
-                    } else if (found.isEmpty()) {
-                        status.setText("No more results.");
-                    } else {
-                        status.setText(reset
-                                ? plural(found.size(), "result", "results")
-                                : "Added " + plural(found.size(), "more result", "more results"));
-                        appendOpenFoodFactsResults(results, found);
-                        if (!reset) {
-                            scrollView.post(() -> scrollView.scrollTo(0, previousScrollY));
-                        }
-                    }
-                    nextPage[0] = page + 1;
-                    loadMore.setVisibility(hasMore ? View.VISIBLE : View.GONE);
-                    loadMore.setEnabled(hasMore);
-                });
-            } catch (Exception exception) {
-                runOnUiThread(() -> {
-                    search.setEnabled(true);
-                    loadMore.setEnabled(true);
-                    status.setText("Search failed. Check connection and try again.");
-                    Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-            }
-        }).start();
-    }
-
-    private void appendOpenFoodFactsResults(
-            LinearLayout container,
-            List<OpenFoodFactsClient.SearchResult> results
-    ) {
-        for (OpenFoodFactsClient.SearchResult result : results) {
-            container.addView(openFoodFactsResultCard(result));
-        }
-    }
-
-    private View openFoodFactsResultCard(OpenFoodFactsClient.SearchResult result) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(result.displayName(), 18, COLOR_INK, Typeface.BOLD));
-        details.addView(text(openFoodFactsResultSummary(result), 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text("Barcode " + result.code, 12, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(result.nutritionGrade.isEmpty() ? "OFF" : result.nutritionGrade.toUpperCase(Locale.US)));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button inspect = button("Inspect", COLOR_BLUE, COLOR_BLUE_SOFT);
-        inspect.setOnClickListener(view -> showOpenFoodFactsInspectDialog(result));
-        actions.addView(inspect, weightedActionParams());
-
-        Button add = button("Add", COLOR_GREEN, COLOR_GREEN_SOFT);
-        add.setOnClickListener(view -> importOpenFoodFactsFood(result, false));
-        actions.addView(add, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    private String openFoodFactsResultSummary(OpenFoodFactsClient.SearchResult result) {
-        ArrayList<String> details = new ArrayList<>();
-        if (!result.brand.isEmpty()) {
-            details.add(result.brand);
-        }
-        if (!result.quantity.isEmpty()) {
-            details.add(result.quantity);
-        }
-        if (details.isEmpty()) {
-            return "OpenFoodFacts product";
-        }
-        return String.join(" - ", details);
-    }
-
-    private void importOpenFoodFactsFood(OpenFoodFactsClient.SearchResult result, boolean editBeforeSaving) {
-        Toast.makeText(this, "Loading food details...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(result.code, currentProfileId);
-                runOnUiThread(() -> {
-                    if (editBeforeSaving) {
-                        showFoodDialog(food);
-                        return;
-                    }
-                    store.saveNutritionFood(food);
-                    Toast.makeText(this, "Saved " + food.displayName(), Toast.LENGTH_SHORT).show();
-                    renderShell();
-                });
-            } catch (Exception exception) {
-                runOnUiThread(() -> Toast.makeText(this, exception.getMessage(), Toast.LENGTH_SHORT).show());
-            }
-        }).start();
-    }
-
-    private void showOpenFoodFactsInspectDialog(OpenFoodFactsClient.SearchResult result) {
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(18), dp(8), dp(18), 0);
-        body.addView(text("Loading nutrition facts...", 15, COLOR_MUTED, Typeface.BOLD));
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(body);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Inspect food")
-                .setView(scrollView)
-                .setNegativeButton("Close", null)
-                .create();
-
-        dialog.show();
-
-        new Thread(() -> {
-            try {
-                NutritionFood food = new OpenFoodFactsClient().fetchNutritionFood(result.code, currentProfileId);
-                runOnUiThread(() -> renderOpenFoodFactsInspection(dialog, body, food, result));
-            } catch (Exception exception) {
-                runOnUiThread(() -> {
-                    body.removeAllViews();
-                    body.addView(text("Could not load this food.", 16, COLOR_CORAL, Typeface.BOLD));
-                    body.addView(text(exception.getMessage(), 13, COLOR_MUTED, Typeface.NORMAL));
-                });
-            }
-        }).start();
-    }
-
-    private void renderOpenFoodFactsInspection(
-            AlertDialog dialog,
-            LinearLayout body,
-            NutritionFood food,
-            OpenFoodFactsClient.SearchResult result
-    ) {
-        renderOpenFoodFactsInspection(dialog, body, food, "OpenFoodFacts barcode " + result.code);
-    }
-
-    private void renderOpenFoodFactsInspection(
-            AlertDialog dialog,
-            LinearLayout body,
-            NutritionFood food,
-            String sourceLine
-    ) {
-        body.removeAllViews();
-        body.addView(text(food.displayName(), 21, COLOR_INK, Typeface.BOLD));
-        body.addView(text(sourceLine, 12, COLOR_MUTED, Typeface.NORMAL));
-        body.addView(fieldLabel("Serving"));
-        body.addView(nutritionFactRow("Serving size", food.servingSize.isEmpty() ? "Not listed" : food.servingSize));
-        body.addView(nutritionFactRow("Servings per container", food.servingsPerContainer > 0.0f ? formatServings(food.servingsPerContainer) : "Not listed"));
-
-        body.addView(fieldLabel("Nutrition facts"));
-        body.addView(nutritionFactRow("Calories", String.valueOf(food.calories)));
-        body.addView(nutritionFactRow("Total fat", formatGrams(food.totalFatGrams)));
-        body.addView(nutritionFactRow("Saturated fat", formatGrams(food.saturatedFatGrams)));
-        body.addView(nutritionFactRow("Trans fat", formatGrams(food.transFatGrams)));
-        body.addView(nutritionFactRow("Cholesterol", formatMg(food.cholesterolMg)));
-        body.addView(nutritionFactRow("Sodium", formatMg(food.sodiumMg)));
-        body.addView(nutritionFactRow("Total carbs", formatGrams(food.totalCarbsGrams)));
-        body.addView(nutritionFactRow("Fiber", formatGrams(food.fiberGrams)));
-        body.addView(nutritionFactRow("Total sugars", formatGrams(food.totalSugarsGrams)));
-        body.addView(nutritionFactRow("Added sugars", formatGrams(food.addedSugarsGrams)));
-        body.addView(nutritionFactRow("Protein", formatGrams(food.proteinGrams)));
-
-        body.addView(fieldLabel("Vitamins and minerals"));
-        body.addView(nutritionFactRow("Vitamin D", formatMcg(food.vitaminDMcg)));
-        body.addView(nutritionFactRow("Calcium", formatMg(food.calciumMg)));
-        body.addView(nutritionFactRow("Iron", formatMg(food.ironMg)));
-        body.addView(nutritionFactRow("Potassium", formatMg(food.potassiumMg)));
-
-        LinearLayout actions = actionRow();
-        Button save = button("Save food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        save.setOnClickListener(view -> {
-            store.saveNutritionFood(food);
-            dialog.dismiss();
-            Toast.makeText(this, "Saved " + food.displayName(), Toast.LENGTH_SHORT).show();
-            renderShell();
-        });
-        actions.addView(save, weightedActionParams());
-
-        Button edit = button("Edit first", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> {
-            dialog.dismiss();
-            showFoodDialog(food);
-        });
-        actions.addView(edit, weightedActionParams());
-        body.addView(actions);
-    }
-
-    private View nutritionFactRow(String label, String value) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(6), 0, dp(6));
-
-        TextView labelView = text(label, 14, COLOR_INK, Typeface.BOLD);
-        row.addView(labelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        TextView valueView = text(value, 14, COLOR_MUTED, Typeface.BOLD);
-        valueView.setGravity(Gravity.RIGHT);
-        row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        return row;
-    }
-
-    private void showMealDefaultsDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-
-        LinearLayout defaultsList = new LinearLayout(this);
-        defaultsList.setOrientation(LinearLayout.VERTICAL);
-        renderMealDefaultRows(defaultsList, new ArrayList<>(store.getMealDefaults(currentProfileId)));
-        form.addView(defaultsList);
-
-        Button addDefault = button("+ Default meal", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addDefault.setOnClickListener(view -> {
-            ArrayList<String> names = mealDefaultNamesFrom(defaultsList);
-            names.add("Meal " + (names.size() + 1));
-            renderMealDefaultRows(defaultsList, names);
-        });
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
-        );
-        addParams.topMargin = dp(10);
-        form.addView(addDefault, addParams);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Default meals")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                ArrayList<String> names = mealDefaultNamesFrom(defaultsList);
-                if (names.isEmpty()) {
-                    Toast.makeText(this, "Keep at least one default meal.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                store.saveMealDefaults(currentProfileId, names);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void renderMealDefaultRows(LinearLayout container, ArrayList<String> mealNames) {
-        container.removeAllViews();
-        if (mealNames.isEmpty()) {
-            mealNames.add("Meal 1");
-        }
-
-        for (int i = 0; i < mealNames.size(); i++) {
-            int index = i;
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, 0);
-
-            EditText nameField = field("Meal name", mealNames.get(i), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-            row.addView(nameField, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
-            remove.setEnabled(mealNames.size() > 1);
-            remove.setAlpha(mealNames.size() > 1 ? 1.0f : 0.45f);
-            remove.setOnClickListener(view -> {
-                ArrayList<String> names = mealDefaultNamesFrom(container);
-                if (names.size() <= 1) {
-                    Toast.makeText(this, "Keep at least one default meal.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                names.remove(index);
-                renderMealDefaultRows(container, names);
-            });
-            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(dp(96), dp(48));
-            removeParams.leftMargin = dp(8);
-            row.addView(remove, removeParams);
-
-            container.addView(row);
-        }
-    }
-
-    private ArrayList<String> mealDefaultNamesFrom(LinearLayout container) {
-        ArrayList<String> names = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-            View child = container.getChildAt(i);
-            if (child instanceof LinearLayout) {
-                LinearLayout row = (LinearLayout) child;
-                if (row.getChildCount() > 0 && row.getChildAt(0) instanceof EditText) {
-                    String name = ((EditText) row.getChildAt(0)).getText().toString().trim();
-                    if (!name.isEmpty() && !names.contains(name)) {
-                        names.add(name);
-                    }
-                }
-            }
-        }
-        return names;
-    }
-
-    private String defaultMealName() {
-        for (String name : store.getMealDefaults(currentProfileId)) {
-            if (name != null && !name.trim().isEmpty()) {
-                return name.trim();
-            }
-        }
-        return "Meal";
-    }
-
-    private void confirmDeleteMealLog(MealFoodLog log) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete this food log?")
-                .setMessage("This removes the entry from the meal log.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    store.deleteMealFoodLog(log.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void confirmDeleteSavedMeal(SavedMeal savedMeal) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + savedMeal.name + "?")
-                .setMessage("This removes the saved meal combination.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    store.deleteSavedMeal(savedMeal.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void confirmDeleteFood(NutritionFood food) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + food.displayName() + "?")
-                .setMessage("This removes the saved food and any meal logs that use it.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    store.deleteNutritionFood(food.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void addWaterAndRefresh(int ounces) {
-        store.addWater(currentProfileId, ounces);
-        renderShell();
-    }
-
-    private void showWaterDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText ouncesField = field("Ounces", "", InputType.TYPE_CLASS_NUMBER);
-        form.addView(ouncesField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Add water")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Add", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button add = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            add.setOnClickListener(view -> {
-                int ounces = parseInt(ouncesField, 0);
-                if (ounces <= 0) {
-                    ouncesField.setError("Enter ounces");
-                    return;
-                }
-                store.addWater(currentProfileId, ounces);
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void confirmClearWater(long startMillis, long endMillis) {
-        new AlertDialog.Builder(this)
-                .setTitle("Clear today's water?")
-                .setMessage("This removes all water entries for today.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Clear", (dialog, which) -> {
-                    store.clearWater(currentProfileId, startMillis, endMillis);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void showWeightDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(18), dp(8), dp(18), 0);
-        EditText weightField = field("Weight in pounds", "", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        form.addView(weightField);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Log weight")
-                .setView(form)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                float pounds = parseFloat(weightField, 0.0f);
-                if (pounds <= 0.0f) {
-                    weightField.setError("Enter weight");
-                    return;
-                }
-                store.saveWeightEntry(new WeightEntry(0, currentProfileId, pounds, System.currentTimeMillis()));
-                dialog.dismiss();
-                renderShell();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private void renderDoseTimeRows(
-            LinearLayout container,
-            TextView frequencySummary,
-            ArrayList<Integer> doseMinutes,
-            Runnable refresh
-    ) {
-        normalizeDoseTimes(doseMinutes);
-        frequencySummary.setText("Frequency: " + plural(doseMinutes.size(), "dose/day", "doses/day"));
-        container.removeAllViews();
-
-        for (int i = 0; i < doseMinutes.size(); i++) {
-            int index = i;
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, 0);
-
-            TextView label = text("Dose " + (index + 1), 14, COLOR_INK, Typeface.BOLD);
-            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(72), dp(44));
-            row.addView(label, labelParams);
-
-            Button time = button(Medication.formatMinutes(doseMinutes.get(index)), COLOR_BLUE, COLOR_BLUE_SOFT);
-            time.setOnClickListener(view -> showDoseTimePicker(doseMinutes, index, refresh));
-            row.addView(time, new LinearLayout.LayoutParams(0, dp(44), 1));
-
-            Button remove = button("Remove", COLOR_CORAL, COLOR_CORAL_SOFT);
-            remove.setEnabled(doseMinutes.size() > 1);
-            remove.setAlpha(doseMinutes.size() > 1 ? 1.0f : 0.45f);
-            remove.setOnClickListener(view -> {
-                if (doseMinutes.size() <= 1) {
-                    Toast.makeText(this, "Keep at least one dose time.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                doseMinutes.remove(index);
-                refresh.run();
-            });
-            LinearLayout.LayoutParams removeParams = new LinearLayout.LayoutParams(dp(96), dp(44));
-            removeParams.leftMargin = dp(8);
-            row.addView(remove, removeParams);
-
-            container.addView(row);
-        }
-    }
-
-    private void showDoseTimePicker(ArrayList<Integer> doseMinutes, int index, Runnable refresh) {
-        int existingMinutes = doseMinutes.get(index);
-        int hour = existingMinutes / 60;
-        int minute = existingMinutes % 60;
-        TimePickerDialog dialog = new TimePickerDialog(
-                this,
-                (view, selectedHour, selectedMinute) -> {
-                    int newMinutes = Medication.normalizeMinutes((selectedHour * 60) + selectedMinute);
-                    for (int i = 0; i < doseMinutes.size(); i++) {
-                        if (i != index && doseMinutes.get(i) == newMinutes) {
-                            Toast.makeText(this, "That dose time is already scheduled.", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                    }
-                    doseMinutes.set(index, newMinutes);
-                    refresh.run();
-                },
-                hour,
-                minute,
-                false
-        );
-        dialog.show();
-    }
-
-    private void renderRepeatReminderOptions(
-            LinearLayout container,
-            TextView repeatSummary,
-            int[] repeatReminderMinutes,
-            Runnable refresh
-    ) {
-        repeatReminderMinutes[0] = Math.max(0, Math.min(Medication.MAX_REPEAT_REMINDER_MINUTES, repeatReminderMinutes[0]));
-        repeatSummary.setText(Medication.repeatReminderLabel(repeatReminderMinutes[0]));
-        container.removeAllViews();
-
-        addRepeatReminderRow(container, repeatReminderMinutes, refresh, new int[]{0, 5, 10});
-        addRepeatReminderRow(container, repeatReminderMinutes, refresh, new int[]{30, 60, -1});
-    }
-
-    private void addRepeatReminderRow(
-            LinearLayout container,
-            int[] repeatReminderMinutes,
-            Runnable refresh,
-            int[] options
-    ) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(8), 0, 0);
-
-        for (int option : options) {
-            boolean selected = option < 0
-                    ? isCustomRepeatReminder(repeatReminderMinutes[0])
-                    : repeatReminderMinutes[0] == option;
-            Button optionButton = button(
-                    repeatReminderOptionLabel(option),
-                    selected ? Color.WHITE : COLOR_BLUE,
-                    selected ? COLOR_BLUE : COLOR_BLUE_SOFT
-            );
-            optionButton.setOnClickListener(view -> {
-                if (option < 0) {
-                    showCustomRepeatReminderDialog(repeatReminderMinutes, refresh);
-                    return;
-                }
-                repeatReminderMinutes[0] = option;
-                refresh.run();
-            });
-
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1);
-            if (row.getChildCount() > 0) {
-                params.leftMargin = dp(8);
-            }
-            row.addView(optionButton, params);
-        }
-
-        container.addView(row);
-    }
-
-    private void showCustomRepeatReminderDialog(int[] repeatReminderMinutes, Runnable refresh) {
-        String currentValue = isCustomRepeatReminder(repeatReminderMinutes[0])
-                ? String.valueOf(repeatReminderMinutes[0])
-                : "";
-        EditText minutesField = field("Minutes between alerts", currentValue, InputType.TYPE_CLASS_NUMBER);
-        minutesField.setSelectAllOnFocus(true);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Custom repeat")
-                .setView(minutesField)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null)
-                .create();
-
-        dialog.setOnShowListener(dialogInterface -> {
-            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            save.setOnClickListener(view -> {
-                int minutes = parseInt(minutesField, 0);
-                if (minutes <= 0) {
-                    minutesField.setError("Enter minutes");
-                    return;
-                }
-                if (minutes > Medication.MAX_REPEAT_REMINDER_MINUTES) {
-                    minutesField.setError("Use 1440 minutes or less");
-                    return;
-                }
-
-                repeatReminderMinutes[0] = minutes;
-                refresh.run();
-                dialog.dismiss();
-            });
-        });
-
-        dialog.show();
-    }
-
-    private boolean isCustomRepeatReminder(int minutes) {
-        return minutes > 0 && minutes != 5 && minutes != 10 && minutes != 30 && minutes != 60;
-    }
-
-    private String repeatReminderOptionLabel(int minutes) {
-        if (minutes < 0) {
-            return "Custom";
-        }
-        if (minutes == 0) {
-            return "Off";
-        }
-        if (minutes == 60) {
-            return "1 hr";
-        }
-        return minutes + " min";
-    }
-
-    private void showMealTimePicker(Button timeButton, int[] mealMinutes, boolean[] customMealTime) {
-        int hour = mealMinutes[0] / 60;
-        int minute = mealMinutes[0] % 60;
-        TimePickerDialog dialog = new TimePickerDialog(
-                this,
-                (view, selectedHour, selectedMinute) -> {
-                    mealMinutes[0] = Medication.normalizeMinutes((selectedHour * 60) + selectedMinute);
-                    customMealTime[0] = true;
-                    timeButton.setText("Ate at " + Medication.formatMinutes(mealMinutes[0]));
-                },
-                hour,
-                minute,
-                false
-        );
-        dialog.show();
-    }
-
-    private int nextSuggestedDoseTime(List<Integer> doseMinutes) {
-        if (doseMinutes.isEmpty()) {
-            return 8 * 60;
-        }
-
-        ArrayList<Integer> sorted = new ArrayList<>(doseMinutes);
-        normalizeDoseTimes(sorted);
-        int candidate = Medication.normalizeMinutes(sorted.get(sorted.size() - 1) + (4 * 60));
-        for (int attempt = 0; attempt < Medication.MAX_DOSES_PER_DAY; attempt++) {
-            if (!sorted.contains(candidate)) {
-                return candidate;
-            }
-            candidate = Medication.normalizeMinutes(candidate + 60);
-        }
-        return 8 * 60;
-    }
-
-    private void normalizeDoseTimes(ArrayList<Integer> doseMinutes) {
-        if (doseMinutes.isEmpty()) {
-            doseMinutes.add(8 * 60);
-        }
-        for (int i = 0; i < doseMinutes.size(); i++) {
-            doseMinutes.set(i, Medication.normalizeMinutes(doseMinutes.get(i)));
-        }
-        doseMinutes.sort(Integer::compareTo);
-        while (doseMinutes.size() > Medication.MAX_DOSES_PER_DAY) {
-            doseMinutes.remove(doseMinutes.size() - 1);
-        }
-    }
-
-    private int minuteOfDay(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).getHour() * 60 +
-                Instant.ofEpochMilli(epochMillis).atZone(zoneId).getMinute();
-    }
-
-    private long millisForMealTime(long baseMillis, int minutes) {
-        LocalDate date = Instant.ofEpochMilli(baseMillis).atZone(zoneId).toLocalDate();
-        return date.atStartOfDay(zoneId)
-                .plusMinutes(Medication.normalizeMinutes(minutes))
-                .toInstant()
-                .toEpochMilli();
-    }
-
-    private void confirmDelete(Medication medication) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + medication.name + "?")
-                .setMessage("This removes the medication and its dose history from this phone.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    ReminderScheduler.cancel(this, medication.id);
-                    store.deleteMedication(medication.id);
-                    renderShell();
-                })
-                .show();
-    }
-
-    private void toggleMedication(Medication medication) {
-        medication.active = !medication.active;
-        store.saveMedication(medication);
-        if (medication.active) {
-            ReminderScheduler.scheduleNext(this, medication);
-        } else {
-            ReminderScheduler.cancel(this, medication.id);
-        }
-        renderShell();
-    }
-
-    private void adjustInventory(Medication medication, int delta) {
-        store.adjustInventory(medication.id, delta);
-        renderShell();
-    }
-
-    private void markDose(DoseRow row, String status) {
-        store.logDose(row.medication.id, row.scheduledAt, status);
-        if (MedicationStore.STATUS_TAKEN.equals(status)) {
-            store.adjustInventory(row.medication.id, -1);
-        }
-        ReminderScheduler.scheduleNext(this, store.getMedication(row.medication.id));
-        renderShell();
-    }
-
-    private List<DoseRow> doseRowsFor(LocalDate date) {
-        long start = date.atStartOfDay(zoneId).toInstant().toEpochMilli();
-        long end = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
-        Map<String, String> logs = store.getDoseLogsBetween(start, end);
-
-        List<DoseRow> rows = new ArrayList<>();
-        for (Medication medication : store.getActiveMedications(currentProfileId)) {
-            for (long scheduledAt : medication.scheduledDoseTimes(date, zoneId)) {
-                String status = logs.get(MedicationStore.doseKey(medication.id, scheduledAt));
-                rows.add(new DoseRow(medication, scheduledAt, status));
-            }
-        }
-        rows.sort(Comparator.comparingLong(row -> row.scheduledAt));
-        return rows;
-    }
-
-    private String rowStatus(DoseRow row) {
-        if (MedicationStore.STATUS_TAKEN.equals(row.status)) {
-            return "Taken";
-        }
-        if (MedicationStore.STATUS_SKIPPED.equals(row.status)) {
-            return "Skipped";
-        }
-        long now = System.currentTimeMillis();
-        if (row.scheduledAt < now - (15 * 60_000L)) {
-            return "Due";
-        }
-        if (row.scheduledAt <= now + (30 * 60_000L)) {
-            return "Next";
-        }
-        return "Upcoming";
     }
 
     private long loadSelectedProfileId() {
@@ -3419,14 +913,6 @@ public class MainActivity extends Activity {
         return profile == null ? "Me" : profile.name;
     }
 
-    private String formatTime(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).format(timeFormatter);
-    }
-
-    private String formatShortDateTime(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).format(shortDateTimeFormatter);
-    }
-
     private String formatGrams(float grams) {
         return formatFloatInput(grams) + "g";
     }
@@ -3439,43 +925,11 @@ public class MainActivity extends Activity {
         return formatFloatInput(value) + "mcg";
     }
 
-    private String formatServings(float servings) {
-        return formatFloatInput(servings);
-    }
-
-    private String formatPounds(float pounds) {
-        return formatFloatInput(pounds);
-    }
-
     private String nutritionTotalsLine(NutritionTotals totals) {
         return totals.calories + " cal - " +
                 formatGrams(totals.proteinGrams) + " protein - " +
                 formatGrams(totals.totalCarbsGrams) + " carbs - " +
                 formatGrams(totals.totalFatGrams) + " fat";
-    }
-
-    private String savedMealItemsSummary(List<SavedMealItem> items) {
-        if (items.isEmpty()) {
-            return "No foods added";
-        }
-
-        StringBuilder summary = new StringBuilder();
-        int visibleCount = Math.min(2, items.size());
-        for (int i = 0; i < visibleCount; i++) {
-            SavedMealItem item = items.get(i);
-            if (i > 0) {
-                summary.append(", ");
-            }
-            summary.append(item.food == null ? "Food" : item.food.displayName());
-            summary.append(" x");
-            summary.append(formatServings(item.servings));
-        }
-        if (items.size() > visibleCount) {
-            summary.append(" + ");
-            summary.append(items.size() - visibleCount);
-            summary.append(" more");
-        }
-        return summary.toString();
     }
 
     private ArrayList<String> mealNamesForLogs(List<MealFoodLog> logs) {
@@ -3521,69 +975,6 @@ public class MainActivity extends Activity {
             }
         }
         return names.size();
-    }
-
-    private View infoLine(String label, String value) {
-        LinearLayout line = new LinearLayout(this);
-        line.setOrientation(LinearLayout.VERTICAL);
-        line.setPadding(0, dp(12), 0, 0);
-
-        line.addView(text(label, 13, COLOR_MUTED, Typeface.BOLD));
-        TextView valueView = text(value, 15, COLOR_INK, Typeface.BOLD);
-        valueView.setPadding(0, dp(2), 0, 0);
-        line.addView(valueView);
-        return line;
-    }
-
-    private void openExternalLink(String url) {
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        try {
-            startActivity(intent);
-        } catch (Exception exception) {
-            Toast.makeText(this, "No browser is available for this link.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void handleAlertsTap() {
-        if (needsNotificationPermission()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
-            }
-            return;
-        }
-
-        if (!ReminderScheduler.canScheduleExactAlarms(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            startActivity(ReminderScheduler.exactAlarmSettingsIntent(this));
-            return;
-        }
-
-        ReminderScheduler.scheduleAll(this);
-        Toast.makeText(this, "Reminder alerts are ready.", Toast.LENGTH_SHORT).show();
-    }
-
-    private boolean needsNotificationPermission() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
-    }
-
-    private String alertsLabel() {
-        if (needsNotificationPermission()) {
-            return "Enable alerts";
-        }
-        if (!ReminderScheduler.canScheduleExactAlarms(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return "Alarm access";
-        }
-        return "Alerts on";
-    }
-
-    private int alertColor() {
-        if (needsNotificationPermission()) {
-            return COLOR_CORAL;
-        }
-        if (!ReminderScheduler.canScheduleExactAlarms(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return COLOR_BLUE;
-        }
-        return COLOR_GREEN;
     }
 
     private View sectionTitle(String title, String subtitle) {
@@ -3649,18 +1040,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout card() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(14), dp(16), dp(14));
-        card.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(22)));
-        card.setElevation(dp(1));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(10);
-        card.setLayoutParams(params);
-        return card;
+        return ui.card();
     }
 
     private LinearLayout actionRow() {
@@ -3671,122 +1051,31 @@ public class MainActivity extends Activity {
     }
 
     private TextView statusBadge(String label) {
-        int textColor = COLOR_BLUE;
-        int background = COLOR_BLUE_SOFT;
-        if ("Taken".equals(label) || "Active".equals(label) || "OK".equals(label)) {
-            textColor = COLOR_GREEN;
-            background = COLOR_GREEN_SOFT;
-        } else if ("Due".equals(label) || "Skipped".equals(label) || "Paused".equals(label) || "Refill".equals(label)) {
-            textColor = COLOR_CORAL;
-            background = COLOR_CORAL_SOFT;
-        }
-        TextView badge = text(label, 12, textColor, Typeface.BOLD);
-        badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(12), dp(6), dp(12), dp(6));
-        badge.setBackground(rounded(background, Color.TRANSPARENT, dp(16)));
-        return badge;
-    }
-
-    private TextView timePill(String value) {
-        TextView pill = text(value, 13, COLOR_BLUE, Typeface.BOLD);
-        pill.setGravity(Gravity.CENTER);
-        pill.setBackground(rounded(COLOR_BLUE_SOFT, Color.TRANSPARENT, dp(18)));
-        return pill;
+        return ui.statusBadge(label);
     }
 
     private TextView summaryPill(String label, int textColor, int background) {
-        TextView pill = text(label, 12, textColor, Typeface.BOLD);
-        pill.setGravity(Gravity.CENTER);
-        pill.setPadding(dp(10), dp(7), dp(10), dp(7));
-        pill.setBackground(rounded(background, Color.TRANSPARENT, dp(18)));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        params.rightMargin = dp(8);
-        pill.setLayoutParams(params);
-        return pill;
-    }
-
-    private TextView displayText(String value, int sp, int color) {
-        TextView textView = text(value, sp, color, Typeface.BOLD);
-        textView.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
-        textView.setIncludeFontPadding(false);
-        return textView;
+        return ui.summaryPill(label, textColor, background);
     }
 
     private TextView text(String value, int sp, int color, int style) {
-        TextView textView = new TextView(this);
-        textView.setText(value);
-        textView.setTextColor(color);
-        textView.setTextSize(sp);
-        textView.setTypeface(Typeface.create("sans-serif", style));
-        textView.setLineSpacing(dp(2), 1.0f);
-        return textView;
+        return ui.text(value, sp, color, style);
     }
 
     private TextView fieldLabel(String value) {
-        TextView label = text(value, 13, COLOR_MUTED, Typeface.BOLD);
-        label.setPadding(0, dp(10), 0, dp(3));
-        return label;
-    }
-
-    private EditText field(String hint, String value, int inputType) {
-        EditText field = new EditText(this);
-        field.setHint(hint);
-        field.setText(value);
-        field.setInputType(inputType);
-        field.setSingleLine(!hint.equals("Instructions"));
-        field.setTextColor(COLOR_INK);
-        field.setHintTextColor(COLOR_MUTED);
-        field.setTextSize(15);
-        field.setPadding(dp(14), dp(10), dp(14), dp(10));
-        field.setMinHeight(dp(48));
-        field.setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(18)));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.topMargin = dp(8);
-        field.setLayoutParams(params);
-        return field;
+        return ui.fieldLabel(value);
     }
 
     private Button button(String label, int textColor, int backgroundColor) {
-        Button button = new Button(this);
-        button.setAllCaps(false);
-        button.setText(label);
-        button.setTextColor(textColor);
-        button.setTextSize(14);
-        button.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        button.setMinHeight(dp(42));
-        button.setMinWidth(dp(68));
-        button.setPadding(dp(12), 0, dp(12), 0);
-        int stroke = backgroundColor == Color.TRANSPARENT || backgroundColor == Color.WHITE
-                ? COLOR_BORDER
-                : Color.TRANSPARENT;
-        button.setBackground(rounded(backgroundColor, stroke, dp(18)));
-        return button;
+        return ui.button(label, textColor, backgroundColor);
     }
 
     private GradientDrawable rounded(int color, int strokeColor, int radius) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(color);
-        drawable.setCornerRadius(radius);
-        if (strokeColor != Color.TRANSPARENT) {
-            drawable.setStroke(dp(1), strokeColor);
-        }
-        return drawable;
+        return ui.rounded(color, strokeColor, radius);
     }
 
     private GradientDrawable roundedGradient(int[] colors, int radius) {
-        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, colors);
-        drawable.setCornerRadius(radius);
-        return drawable;
-    }
-
-    private LinearLayout.LayoutParams compactButtonParams() {
-        return new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(44)
-        );
+        return ui.roundedGradient(colors, radius);
     }
 
     private LinearLayout.LayoutParams weightedActionParams() {
@@ -3822,10 +1111,10 @@ public class MainActivity extends Activity {
         int size = dp(sizeDp);
         if (profile != null && profile.hasAvatar()) {
             int width = dp(avatarWidthDp(profile, sizeDp));
-            Bitmap source = loadBitmap(profile.avatarUri);
+            Bitmap source = profilePhotoFlow.loadBitmap(profile.avatarUri);
             Bitmap avatar = source == null
                     ? null
-                    : createCroppedAvatarBitmap(source, Math.max(1, width * 2), Math.max(1, size * 2), profile);
+                    : profilePhotoFlow.createCroppedAvatarBitmap(source, Math.max(1, width * 2), Math.max(1, size * 2), profile);
             if (avatar != null) {
                 ImageView image = new ImageView(this);
                 image.setScaleType(ImageView.ScaleType.FIT_XY);
@@ -3846,318 +1135,11 @@ public class MainActivity extends Activity {
         if (profile == null || !profile.hasAvatar()) {
             return heightDp;
         }
-        return Math.round(heightDp * clamp(profile.avatarAspectRatio, 0.75f, 1.65f, 1.0f));
-    }
-
-    private Bitmap loadBitmap(String uriString) {
-        if (uriString == null || uriString.trim().isEmpty()) {
-            return null;
-        }
-
-        Uri uri;
-        try {
-            uri = Uri.parse(uriString);
-        } catch (Exception exception) {
-            return null;
-        }
-
-        BitmapFactory.Options bounds = new BitmapFactory.Options();
-        bounds.inJustDecodeBounds = true;
-        try (InputStream input = getContentResolver().openInputStream(uri)) {
-            BitmapFactory.decodeStream(input, null, bounds);
-        } catch (IOException | RuntimeException exception) {
-            return null;
-        }
-
-        int sampleSize = 1;
-        int largestSide = Math.max(bounds.outWidth, bounds.outHeight);
-        while (largestSide / sampleSize > 1600) {
-            sampleSize *= 2;
-        }
-
-        BitmapFactory.Options decode = new BitmapFactory.Options();
-        decode.inSampleSize = sampleSize;
-        decode.inPreferredConfig = Bitmap.Config.ARGB_8888;
-        try (InputStream input = getContentResolver().openInputStream(uri)) {
-            return BitmapFactory.decodeStream(input, null, decode);
-        } catch (IOException | RuntimeException exception) {
-            return null;
-        }
-    }
-
-    private Bitmap createCroppedAvatarBitmap(Bitmap source, int width, int height, Profile profile) {
-        Bitmap output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(output);
-        RectF frame = new RectF(0, 0, width, height);
-        Path clip = new Path();
-        float radius = Math.min(width, height) / 2.0f;
-        clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
-        canvas.save();
-        canvas.clipPath(clip);
-        drawCroppedBitmap(
-                canvas,
-                source,
-                frame,
-                profile.avatarZoom,
-                profile.avatarOffsetX,
-                profile.avatarOffsetY
-        );
-        canvas.restore();
-        return output;
-    }
-
-    private void drawCroppedBitmap(
-            Canvas canvas,
-            Bitmap source,
-            RectF frame,
-            float zoom,
-            float offsetX,
-            float offsetY
-    ) {
-        if (source == null || source.getWidth() <= 0 || source.getHeight() <= 0) {
-            return;
-        }
-
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
-        float safeZoom = clamp(zoom, 1.0f, 3.0f, 1.0f);
-        float scale = Math.max(frame.width() / source.getWidth(), frame.height() / source.getHeight()) * safeZoom;
-        float destinationWidth = source.getWidth() * scale;
-        float destinationHeight = source.getHeight() * scale;
-        float panX = Math.max(0.0f, (destinationWidth - frame.width()) / 2.0f);
-        float panY = Math.max(0.0f, (destinationHeight - frame.height()) / 2.0f);
-        float left = frame.centerX() - destinationWidth / 2.0f + clamp(offsetX, -1.0f, 1.0f, 0.0f) * panX;
-        float top = frame.centerY() - destinationHeight / 2.0f + clamp(offsetY, -1.0f, 1.0f, 0.0f) * panY;
-        RectF destination = new RectF(left, top, left + destinationWidth, top + destinationHeight);
-        canvas.drawColor(COLOR_CARD);
-        canvas.drawBitmap(source, null, destination, paint);
-    }
-
-    private float clamp(float value, float min, float max, float fallback) {
-        if (Float.isNaN(value) || Float.isInfinite(value) || value <= 0 && min > 0) {
-            return fallback;
-        }
-        return Math.max(min, Math.min(max, value));
-    }
-
-    private int parseInt(EditText field, int fallback) {
-        try {
-            return Math.max(0, Integer.parseInt(field.getText().toString().trim()));
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
-    }
-
-    private float parseFloat(EditText field, float fallback) {
-        try {
-            return Math.max(0.0f, Float.parseFloat(field.getText().toString().trim()));
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
+        return Math.round(heightDp * profilePhotoFlow.clampedAvatarAspectRatio(profile.avatarAspectRatio));
     }
 
     private int dp(float value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return ui.dp(value);
     }
 
-    private final class ProfilePhotoEditorView extends View {
-        private final Bitmap bitmap;
-        private float zoom = 1.0f;
-        private float offsetX = 0.0f;
-        private float offsetY = 0.0f;
-        private float aspectRatio = 1.0f;
-        private float lastX;
-        private float lastY;
-        private float pinchStartDistance;
-        private float pinchStartZoom;
-        private Runnable onFrameChanged;
-
-        ProfilePhotoEditorView(Bitmap bitmap) {
-            super(MainActivity.this);
-            this.bitmap = bitmap;
-            setBackground(rounded(COLOR_CARD, COLOR_BORDER, dp(22)));
-        }
-
-        void setOnFrameChangedListener(Runnable listener) {
-            onFrameChanged = listener;
-        }
-
-        void setFrame(float zoom, float offsetX, float offsetY, float aspectRatio) {
-            this.zoom = clamp(zoom, 1.0f, 3.0f, 1.0f);
-            this.offsetX = clamp(offsetX, -1.0f, 1.0f, 0.0f);
-            this.offsetY = clamp(offsetY, -1.0f, 1.0f, 0.0f);
-            this.aspectRatio = clamp(aspectRatio, 0.75f, 1.65f, 1.0f);
-            invalidate();
-            notifyFrameChanged();
-        }
-
-        void setZoom(float value) {
-            zoom = clamp(value, 1.0f, 3.0f, 1.0f);
-            invalidate();
-            notifyFrameChanged();
-        }
-
-        void setAspectRatio(float value) {
-            aspectRatio = clamp(value, 0.75f, 1.65f, 1.0f);
-            invalidate();
-            notifyFrameChanged();
-        }
-
-        void nudge(float deltaX, float deltaY) {
-            offsetX = clamp(offsetX + deltaX, -1.0f, 1.0f, 0.0f);
-            offsetY = clamp(offsetY + deltaY, -1.0f, 1.0f, 0.0f);
-            invalidate();
-            notifyFrameChanged();
-        }
-
-        void center() {
-            offsetX = 0.0f;
-            offsetY = 0.0f;
-            invalidate();
-            notifyFrameChanged();
-        }
-
-        float getZoom() {
-            return zoom;
-        }
-
-        float getOffsetX() {
-            return offsetX;
-        }
-
-        float getOffsetY() {
-            return offsetY;
-        }
-
-        float getAspectRatio() {
-            return aspectRatio;
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            RectF frame = editorFrame();
-            float radius = Math.min(frame.width(), frame.height()) / 2.0f;
-
-            Path clip = new Path();
-            clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
-            canvas.save();
-            canvas.clipPath(clip);
-            drawCroppedBitmap(canvas, bitmap, frame, zoom, offsetX, offsetY);
-            canvas.restore();
-
-            Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
-            border.setStyle(Paint.Style.STROKE);
-            border.setStrokeWidth(dp(2));
-            border.setColor(COLOR_GREEN);
-            canvas.drawRoundRect(frame, radius, radius, border);
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent event) {
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                lastX = event.getX();
-                lastY = event.getY();
-                getParent().requestDisallowInterceptTouchEvent(true);
-                return true;
-            }
-            if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
-                pinchStartDistance = pointerDistance(event);
-                pinchStartZoom = zoom;
-                return true;
-            }
-            if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-                if (event.getPointerCount() >= 2) {
-                    float distance = pointerDistance(event);
-                    if (pinchStartDistance > 0.0f) {
-                        setZoom(pinchStartZoom * distance / pinchStartDistance);
-                    }
-                } else {
-                    float x = event.getX();
-                    float y = event.getY();
-                    panByPixels(x - lastX, y - lastY);
-                    lastX = x;
-                    lastY = y;
-                }
-                return true;
-            }
-            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
-                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                getParent().requestDisallowInterceptTouchEvent(false);
-                return true;
-            }
-            return true;
-        }
-
-        private RectF editorFrame() {
-            float padding = dp(14);
-            float availableWidth = Math.max(1.0f, getWidth() - padding * 2.0f);
-            float availableHeight = Math.max(1.0f, getHeight() - padding * 2.0f);
-            float frameWidth = availableWidth;
-            float frameHeight = frameWidth / aspectRatio;
-            if (frameHeight > availableHeight) {
-                frameHeight = availableHeight;
-                frameWidth = frameHeight * aspectRatio;
-            }
-            float left = (getWidth() - frameWidth) / 2.0f;
-            float top = (getHeight() - frameHeight) / 2.0f;
-            return new RectF(left, top, left + frameWidth, top + frameHeight);
-        }
-
-        private void panByPixels(float deltaX, float deltaY) {
-            RectF frame = editorFrame();
-            float scale = Math.max(frame.width() / bitmap.getWidth(), frame.height() / bitmap.getHeight()) * zoom;
-            float destinationWidth = bitmap.getWidth() * scale;
-            float destinationHeight = bitmap.getHeight() * scale;
-            float panX = Math.max(1.0f, (destinationWidth - frame.width()) / 2.0f);
-            float panY = Math.max(1.0f, (destinationHeight - frame.height()) / 2.0f);
-            offsetX = clamp(offsetX + deltaX / panX, -1.0f, 1.0f, 0.0f);
-            offsetY = clamp(offsetY + deltaY / panY, -1.0f, 1.0f, 0.0f);
-            invalidate();
-            notifyFrameChanged();
-        }
-
-        private float pointerDistance(MotionEvent event) {
-            float deltaX = event.getX(0) - event.getX(1);
-            float deltaY = event.getY(0) - event.getY(1);
-            return (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        }
-
-        private void notifyFrameChanged() {
-            if (onFrameChanged != null) {
-                onFrameChanged.run();
-            }
-        }
-    }
-
-    private static final class SavedMealItemDraft {
-        final long foodId;
-        final float servings;
-
-        SavedMealItemDraft(long foodId, float servings) {
-            this.foodId = foodId;
-            this.servings = servings;
-        }
-    }
-
-    private static final class SavedMealItemRowControls {
-        final Spinner foodSpinner;
-        final EditText servingsField;
-
-        SavedMealItemRowControls(Spinner foodSpinner, EditText servingsField) {
-            this.foodSpinner = foodSpinner;
-            this.servingsField = servingsField;
-        }
-    }
-
-    private static final class DoseRow {
-        final Medication medication;
-        final long scheduledAt;
-        final String status;
-
-        DoseRow(Medication medication, long scheduledAt, String status) {
-            this.medication = medication;
-            this.scheduledAt = scheduledAt;
-            this.status = status;
-        }
-    }
 }

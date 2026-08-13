@@ -47,9 +47,17 @@ Screenshots should be added before a public portfolio release. Recommended views
 ```text
 app/src/main/java/com/jojokorok/nourishrx/
   MainActivity.java
+  BarcodeScannerActivity.java
+  about/
   api/OpenFoodFactsClient.java
+  barcode/
   data/
+  medications/
+  nutrition/
+  premium/
+  profiles/
   reminders/
+  ui/
 
 app/src/main/res/
   drawable/
@@ -57,9 +65,12 @@ app/src/main/res/
   values/
 
 docs/
+  ARCHITECTURE.md
   INSTALL_ON_PHONE.md
   RELEASE_PROCESS.md
 ```
+
+`MainActivity` coordinates app state and routes events between focused feature flows. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for package responsibilities and the callback pattern used by the application.
 
 ## Build
 
