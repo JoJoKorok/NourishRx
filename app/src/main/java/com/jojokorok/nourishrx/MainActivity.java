@@ -330,21 +330,6 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public String selectedProfileName() {
-                return MainActivity.this.selectedProfileName();
-            }
-
-            @Override
-            public View sectionTitle(String title, String subtitle) {
-                return MainActivity.this.sectionTitle(title, subtitle);
-            }
-
-            @Override
-            public void emptyState(String message, String action, View.OnClickListener listener) {
-                MainActivity.this.emptyState(message, action, listener);
-            }
-
-            @Override
             public void showMedicationEditor() {
                 medicationEditorFlow.show(null);
             }
