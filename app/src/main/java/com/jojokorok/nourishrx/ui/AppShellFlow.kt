@@ -3,10 +3,13 @@ package com.jojokorok.nourishrx.ui
 import android.app.Activity
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.text.TextUtils
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -68,6 +71,7 @@ class AppShellFlow(
                 0
             )
         }
+        applySystemBarInsets(root)
 
         root.addView(headerPanel(nutritionMode))
         root.addView(tabRow())
@@ -97,6 +101,7 @@ class AppShellFlow(
         )
 
         activity.setContentView(root)
+        root.requestApplyInsets()
         return content
     }
 
@@ -341,42 +346,102 @@ class AppShellFlow(
         }
     }
 
-    private fun tabRow(): LinearLayout = LinearLayout(activity).apply {
-        orientation = LinearLayout.HORIZONTAL
-        setPadding(ui.dp(4), ui.dp(4), ui.dp(4), ui.dp(4))
-        background = ui.rounded(NourishColors.TAB_TRACK, Color.TRANSPARENT, ui.dp(20))
+    private fun tabRow(): LinearLayout {
+        val tabs = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
         if (callbacks.currentMode() == MODE_NUTRITION) {
-            addView(tabButton("Today", "nutrition_today"))
-            addView(tabButton("Meals", "nutrition_meals"))
-            addView(tabButton("Saved", "nutrition_saved"))
-            addView(tabButton("Foods", "nutrition_foods"))
-            addView(tabButton("Body", "nutrition_body"))
+            tabs.addView(tabItem("Today", "nutrition_today"))
+            tabs.addView(tabItem("Meals", "nutrition_meals"))
+            tabs.addView(tabItem("Saved", "nutrition_saved"))
+            tabs.addView(tabItem("Foods", "nutrition_foods"))
+            tabs.addView(tabItem("Body", "nutrition_body"))
         } else {
-            addView(tabButton("Today", "today"))
-            addView(tabButton("Meds", "meds"))
-            addView(tabButton("Stock", "stock"))
+            tabs.addView(tabItem("Today", "today"))
+            tabs.addView(tabItem("Medications", "meds"))
+            tabs.addView(tabItem("Inventory", "stock"))
+        }
+
+        return LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(
+                tabs,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(48))
+            )
+            addView(
+                View(activity).apply { setBackgroundColor(NourishColors.DIVIDER) },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(1))
+            )
         }
     }
 
-    private fun tabButton(label: String, tab: String): Button {
+    private fun tabItem(label: String, tab: String): LinearLayout {
         val selected = callbacks.currentTab() == tab
-        return ui.button(
+        val labelView = ui.text(
             label,
-            if (selected) NourishColors.ON_ACCENT else NourishColors.MUTED,
-            if (selected) NourishColors.GREEN else Color.TRANSPARENT
+            NourishTypography.CAPTION,
+            if (selected) NourishColors.GREEN_DARK else NourishColors.INK_SECONDARY,
+            if (selected) Typeface.BOLD else Typeface.NORMAL
         ).apply {
-            textSize = NourishTypography.CAPTION.toFloat()
+            gravity = Gravity.CENTER
             setSingleLine(true)
-            maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
-            minWidth = 0
-            minimumWidth = 0
-            setPadding(ui.dp(4), 0, ui.dp(4), 0)
-            setOnClickListener { callbacks.selectTab(tab) }
-            layoutParams = LinearLayout.LayoutParams(0, ui.dp(42), 1f).apply {
-                leftMargin = ui.dp(2)
-                rightMargin = ui.dp(2)
+            setPadding(ui.dp(NourishSpacing.XXS), 0, ui.dp(NourishSpacing.XXS), 0)
+        }
+        val indicator = View(activity).apply {
+            setBackgroundColor(if (selected) NourishColors.GREEN else Color.TRANSPARENT)
+        }
+
+        return LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            isSelected = selected
+            contentDescription = if (selected) "$label tab, selected" else "$label tab"
+            val selectableBackground = TypedValue()
+            if (activity.theme.resolveAttribute(
+                    android.R.attr.selectableItemBackground,
+                    selectableBackground,
+                    true
+                )
+            ) {
+                setBackgroundResource(selectableBackground.resourceId)
             }
+            setOnClickListener { callbacks.selectTab(tab) }
+            addView(labelView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(
+                indicator,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(3)).apply {
+                    leftMargin = ui.dp(NourishSpacing.SM)
+                    rightMargin = ui.dp(NourishSpacing.SM)
+                }
+            )
+            layoutParams = LinearLayout.LayoutParams(0, ui.dp(48), 1f)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applySystemBarInsets(root: View) {
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            val topInset: Int
+            val bottomInset: Int
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
+                topInset = systemBars.top
+                bottomInset = systemBars.bottom
+            } else {
+                topInset = insets.systemWindowInsetTop
+                bottomInset = insets.systemWindowInsetBottom
+            }
+            view.setPadding(
+                ui.dp(NourishSpacing.MD),
+                topInset + ui.dp(NourishSpacing.SM),
+                ui.dp(NourishSpacing.MD),
+                bottomInset
+            )
+            insets
         }
     }
 
