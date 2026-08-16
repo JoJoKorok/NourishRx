@@ -291,7 +291,7 @@ public class NutritionTrackingFlow {
         callbacks.onTrackingChanged();
     }
 
-    private void showWaterDialog() {
+    public void showWaterDialog() {
         LinearLayout form = new LinearLayout(activity);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
@@ -334,7 +334,7 @@ public class NutritionTrackingFlow {
                 .show();
     }
 
-    private void showWeightDialog() {
+    public void showWeightDialog() {
         LinearLayout form = new LinearLayout(activity);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
