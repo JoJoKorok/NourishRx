@@ -175,41 +175,27 @@ class NutritionScreens(
         val foods = store.getNutritionFoods(callbacks.currentProfileId())
 
         content.addView(
-            callbacks.sectionTitle(
-                "Foods",
-                if (foods.isEmpty()) "No saved foods yet" else callbacks.plural(foods.size.toLong(), "saved food", "saved foods")
-            )
+            screenHeader(
+                "Food library",
+                if (foods.isEmpty()) "Save foods once, then reuse them in any meal" else
+                    callbacks.plural(foods.size.toLong(), "saved food", "saved foods") + " ready to log",
+                "Add food"
+            ) { callbacks.showFoodDialog() }
         )
-        val actions = actionRow().apply { setPadding(0, ui.dp(NourishSpacing.XXS), 0, 0) }
-
-        actions.addView(
-            ui.button("+ Manual", NourishColors.GREEN, NourishColors.GREEN_SOFT).apply {
-                setOnClickListener { callbacks.showFoodDialog() }
-            },
-            weightedActionParams()
-        )
-        actions.addView(
-            ui.button("Find online", NourishColors.BLUE, NourishColors.BLUE_SOFT).apply {
-                setOnClickListener { callbacks.showOpenFoodFactsSearchDialog() }
-            },
-            weightedActionParams()
-        )
-        actions.addView(
-            ui.button("Barcode", NourishColors.GOLD, NourishColors.GOLD_SOFT).apply {
-                setOnClickListener { callbacks.showBarcodeEntryPoint() }
-            },
-            weightedActionParams(last = true)
-        )
-        content.addView(actions)
+        content.addView(foodDiscoveryCard())
 
         if (foods.isEmpty()) {
-            callbacks.emptyState(
-                "Save food items manually or import inspectable options from OpenFoodFacts.",
-                "Search foods"
-            ) { callbacks.showOpenFoodFactsSearchDialog() }
+            content.addView(
+                emptyCollectionState(
+                    "Your food library is empty",
+                    "Add nutrition manually, search OpenFoodFacts, or scan a packaged-food barcode.",
+                    "Search online"
+                ) { callbacks.showOpenFoodFactsSearchDialog() }
+            )
             return
         }
 
+        content.addView(sectionHeader("Saved foods", "Nutrition values are shown per serving"))
         foods.forEach { content.addView(callbacks.foodCard(it)) }
     }
 
@@ -372,6 +358,36 @@ class NutritionScreens(
                 leftMargin = ui.dp(NourishSpacing.SM)
             }
         )
+    }
+
+    private fun foodDiscoveryCard(): LinearLayout = ui.card().apply {
+        elevation = ui.dp(NourishShapes.ELEVATION_FLAT).toFloat()
+        addView(ui.displayText("Find packaged foods", NourishTypography.BODY_LARGE, NourishColors.INK))
+        addView(
+            ui.text(
+                "Search OpenFoodFacts by name or scan a barcode, then inspect the nutrition before saving.",
+                NourishTypography.LABEL,
+                NourishColors.MUTED,
+                Typeface.NORMAL
+            )
+        )
+
+        val actions = actionRow()
+        actions.addView(
+            ui.button("Search online", NourishColors.BLUE, Color.TRANSPARENT).apply {
+                setSingleLine(true)
+                setOnClickListener { callbacks.showOpenFoodFactsSearchDialog() }
+            },
+            weightedActionParams()
+        )
+        actions.addView(
+            ui.button("Scan barcode", NourishColors.GOLD, Color.TRANSPARENT).apply {
+                setSingleLine(true)
+                setOnClickListener { callbacks.showBarcodeEntryPoint() }
+            },
+            weightedActionParams(last = true)
+        )
+        addView(actions)
     }
 
     private fun emptyCollectionState(

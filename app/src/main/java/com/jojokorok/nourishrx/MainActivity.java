@@ -31,6 +31,7 @@ import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionFoodCards;
 import com.jojokorok.nourishrx.nutrition.NutritionMealCards;
 import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
@@ -49,7 +50,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
@@ -66,12 +66,6 @@ public class MainActivity extends Activity {
     private static final int COLOR_MUTED = NourishColors.MUTED;
     private static final int COLOR_GREEN = NourishColors.GREEN;
     private static final int COLOR_GREEN_SOFT = NourishColors.GREEN_SOFT;
-    private static final int COLOR_CORAL = NourishColors.CORAL;
-    private static final int COLOR_CORAL_SOFT = NourishColors.CORAL_SOFT;
-    private static final int COLOR_BLUE = NourishColors.BLUE;
-    private static final int COLOR_BLUE_SOFT = NourishColors.BLUE_SOFT;
-    private static final int COLOR_GOLD = NourishColors.GOLD;
-    private static final int COLOR_GOLD_SOFT = NourishColors.GOLD_SOFT;
 
     private final ZoneId zoneId = ZoneId.systemDefault();
 
@@ -86,6 +80,7 @@ public class MainActivity extends Activity {
     private MedicationScreens medicationScreens;
     private MedicationTodayFlow medicationTodayFlow;
     private NutritionFoodEditorFlow nutritionFoodEditorFlow;
+    private NutritionFoodCards nutritionFoodCards;
     private NutritionMealCards nutritionMealCards;
     private NutritionMealFlow nutritionMealFlow;
     private NutritionScreens nutritionScreens;
@@ -108,6 +103,7 @@ public class MainActivity extends Activity {
         premiumManager = new PremiumManager(this);
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
+        nutritionFoodCards = new NutritionFoodCards(this, ui, nutritionFoodCardCallbacks());
         nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
         nutritionMealCards = new NutritionMealCards(this, store, ui, zoneId, nutritionMealCardCallbacks());
         nutritionTrackingFlow = new NutritionTrackingFlow(this, store, ui, zoneId, nutritionTrackingCallbacks());
@@ -518,7 +514,7 @@ public class MainActivity extends Activity {
 
             @Override
             public View foodCard(NutritionFood food) {
-                return MainActivity.this.foodCard(food);
+                return nutritionFoodCards.foodCard(food);
             }
 
             @Override
@@ -602,6 +598,25 @@ public class MainActivity extends Activity {
         };
     }
 
+    private NutritionFoodCards.Callbacks nutritionFoodCardCallbacks() {
+        return new NutritionFoodCards.Callbacks() {
+            @Override
+            public void logFood(NutritionFood food) {
+                nutritionMealFlow.showLogFoodDialog("", food.id);
+            }
+
+            @Override
+            public void editFood(NutritionFood food) {
+                nutritionFoodEditorFlow.show(food);
+            }
+
+            @Override
+            public void deleteFood(NutritionFood food) {
+                nutritionFoodEditorFlow.confirmDelete(food);
+            }
+        };
+    }
+
     private ProfileManagementFlow.Callbacks profileCallbacks() {
         return new ProfileManagementFlow.Callbacks() {
             @Override
@@ -675,43 +690,6 @@ public class MainActivity extends Activity {
                 MainActivity.this.renderShell();
             }
         };
-    }
-
-    private View foodCard(NutritionFood food) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(food.displayName(), 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(food.servingSummary(), 13, COLOR_MUTED, Typeface.BOLD));
-        details.addView(text(food.calories + " cal - " +
-                formatGrams(food.proteinGrams) + " protein - " +
-                formatGrams(food.totalCarbsGrams) + " carbs - " +
-                formatGrams(food.totalFatGrams) + " fat", 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(formatMg(food.sodiumMg) + " sodium - " +
-                formatGrams(food.totalSugarsGrams) + " sugars - " +
-                formatMg(food.potassiumMg) + " potassium", 12, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(food.calories > 0 ? food.calories + " cal" : "Food"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-        log.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog("", food.id));
-        actions.addView(log, weightedActionParams());
-
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> nutritionFoodEditorFlow.show(food));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> nutritionFoodEditorFlow.confirmDelete(food));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
     }
 
     private long loadSelectedProfileId() {
@@ -791,14 +769,6 @@ public class MainActivity extends Activity {
         return profile;
     }
 
-    private String formatGrams(float grams) {
-        return formatFloatInput(grams) + "g";
-    }
-
-    private String formatMg(float value) {
-        return formatFloatInput(value) + "mg";
-    }
-
     private ArrayList<String> mealNamesForLogs(List<MealFoodLog> logs) {
         ArrayList<String> names = new ArrayList<>();
         for (MealFoodLog log : logs) {
@@ -824,13 +794,6 @@ public class MainActivity extends Activity {
             }
         }
         return matchingLogs;
-    }
-
-    private String formatFloatInput(float value) {
-        if (Math.abs(value - Math.round(value)) < 0.05f) {
-            return String.valueOf(Math.round(value));
-        }
-        return String.format(Locale.getDefault(), "%.1f", value);
     }
 
     private int distinctMealCount(List<MealFoodLog> logs) {
@@ -906,31 +869,8 @@ public class MainActivity extends Activity {
         content.addView(state, stateParams);
     }
 
-    private LinearLayout card() {
-        return ui.card();
-    }
-
-    private LinearLayout actionRow() {
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setPadding(0, dp(12), 0, 0);
-        return actions;
-    }
-
-    private TextView statusBadge(String label) {
-        return ui.statusBadge(label);
-    }
-
-    private TextView summaryPill(String label, int textColor, int background) {
-        return ui.summaryPill(label, textColor, background);
-    }
-
     private TextView text(String value, int sp, int color, int style) {
         return ui.text(value, sp, color, style);
-    }
-
-    private TextView fieldLabel(String value) {
-        return ui.fieldLabel(value);
     }
 
     private Button button(String label, int textColor, int backgroundColor) {
@@ -943,12 +883,6 @@ public class MainActivity extends Activity {
 
     private GradientDrawable roundedGradient(int[] colors, int radius) {
         return ui.roundedGradient(colors, radius);
-    }
-
-    private LinearLayout.LayoutParams weightedActionParams() {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1);
-        params.rightMargin = dp(8);
-        return params;
     }
 
     private String plural(long count, String singular, String plural) {
