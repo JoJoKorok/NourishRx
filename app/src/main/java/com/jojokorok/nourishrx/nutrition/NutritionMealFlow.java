@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.app.TimePickerDialog;
 import android.graphics.Typeface;
 import android.text.InputType;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -14,7 +13,6 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.jojokorok.nourishrx.data.MealFoodLog;
@@ -30,7 +28,6 @@ import com.jojokorok.nourishrx.ui.NourishUi;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -51,7 +48,6 @@ public class NutritionMealFlow {
     private final NourishUi ui;
     private final ZoneId zoneId;
     private final Callbacks callbacks;
-    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault());
 
     public NutritionMealFlow(
             Activity activity,
@@ -65,87 +61,6 @@ public class NutritionMealFlow {
         this.ui = ui;
         this.zoneId = zoneId;
         this.callbacks = callbacks;
-    }
-
-    public View mealLogCard(MealFoodLog log) {
-        LinearLayout card = ui.card();
-        LinearLayout top = new LinearLayout(activity);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        NutritionFood food = log.food;
-        LinearLayout details = new LinearLayout(activity);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(ui.text(log.mealName, 19, NourishColors.INK, Typeface.BOLD));
-        details.addView(ui.text(
-                (food == null ? "Saved food" : food.displayName()) +
-                        " - " + formatValue(log.servings) + " serving" +
-                        (Math.abs(log.servings - 1.0f) < 0.05f ? "" : "s"),
-                13,
-                NourishColors.MUTED,
-                Typeface.BOLD
-        ));
-        details.addView(ui.text(
-                log.calories() + " cal - " +
-                        formatGrams(log.proteinGrams()) + " protein - " +
-                        formatGrams(log.totalCarbsGrams()) + " carbs - " +
-                        formatGrams(log.totalFatGrams()) + " fat",
-                13,
-                NourishColors.MUTED,
-                Typeface.NORMAL
-        ));
-        details.addView(ui.text(formatTime(log.eatenAt), 12, NourishColors.MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(ui.statusBadge(log.calories() > 0 ? log.calories() + " cal" : "Food"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button edit = ui.button("Edit", NourishColors.BLUE, NourishColors.BLUE_SOFT);
-        edit.setOnClickListener(view -> showLogFoodDialog(log));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = ui.button("Delete", NourishColors.CORAL, NourishColors.CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteMealLog(log));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
-    public View savedMealCard(SavedMeal savedMeal) {
-        LinearLayout card = ui.card();
-        List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
-        NutritionTotals totals = totalsFor(items);
-
-        LinearLayout top = new LinearLayout(activity);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(activity);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(ui.text(savedMeal.name, 19, NourishColors.INK, Typeface.BOLD));
-        if (!savedMeal.notes.isEmpty()) {
-            details.addView(ui.text(savedMeal.notes, 13, NourishColors.MUTED, Typeface.BOLD));
-        }
-        details.addView(ui.text(savedMealItemsSummary(items), 13, NourishColors.MUTED, Typeface.NORMAL));
-        details.addView(ui.text(nutritionTotalsLine(totals), 13, NourishColors.MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(ui.statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button log = ui.button("Log", NourishColors.GREEN, NourishColors.GREEN_SOFT);
-        log.setOnClickListener(view -> showLogSavedMealDialog(savedMeal));
-        actions.addView(log, weightedActionParams());
-
-        Button edit = ui.button("Edit", NourishColors.BLUE, NourishColors.BLUE_SOFT);
-        edit.setOnClickListener(view -> showSavedMealDialog(savedMeal));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = ui.button("Delete", NourishColors.CORAL, NourishColors.CORAL_SOFT);
-        delete.setOnClickListener(view -> confirmDeleteSavedMeal(savedMeal));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
     }
 
     public void showLogFoodDialog(String presetName) {
@@ -255,7 +170,7 @@ public class NutritionMealFlow {
         dialog.show();
     }
 
-    private void showLogSavedMealDialog(SavedMeal savedMeal) {
+    public void showLogSavedMealDialog(SavedMeal savedMeal) {
         List<SavedMealItem> items = store.getSavedMealItems(savedMeal.id);
         if (items.isEmpty()) {
             Toast.makeText(activity, "Add foods before logging this saved meal.", Toast.LENGTH_SHORT).show();
@@ -491,7 +406,7 @@ public class NutritionMealFlow {
         return 0;
     }
 
-    private void showLogFoodDialog(MealFoodLog existing) {
+    public void showLogFoodDialog(MealFoodLog existing) {
         showLogFoodDialog(
                 existing,
                 existing == null ? "" : existing.mealName,
@@ -618,7 +533,7 @@ public class NutritionMealFlow {
         dialog.show();
     }
 
-    private void confirmDeleteMealLog(MealFoodLog log) {
+    public void confirmDeleteMealLog(MealFoodLog log) {
         new AlertDialog.Builder(activity)
                 .setTitle("Delete this food log?")
                 .setMessage("This removes the entry from the meal log.")
@@ -630,7 +545,7 @@ public class NutritionMealFlow {
                 .show();
     }
 
-    private void confirmDeleteSavedMeal(SavedMeal savedMeal) {
+    public void confirmDeleteSavedMeal(SavedMeal savedMeal) {
         new AlertDialog.Builder(activity)
                 .setTitle("Delete " + savedMeal.name + "?")
                 .setMessage("This removes the saved meal combination.")
@@ -718,10 +633,6 @@ public class NutritionMealFlow {
             summary.append(" more");
         }
         return summary.toString();
-    }
-
-    private String formatTime(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis).atZone(zoneId).format(timeFormatter);
     }
 
     private String formatGrams(float value) {

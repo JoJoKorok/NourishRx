@@ -43,11 +43,9 @@ class NutritionScreens(
         fun distinctMealCount(logs: List<MealFoodLog>): Int
         fun mealNamesForLogs(logs: List<MealFoodLog>): List<String>
         fun logsForMeal(logs: List<MealFoodLog>, mealName: String): List<MealFoodLog>
-        fun totalsFromMealLogs(logs: List<MealFoodLog>): NutritionTotals
         fun sectionTitle(title: String, subtitle: String): View
         fun emptyState(message: String, action: String, listener: View.OnClickListener)
         fun mealTotalsCard(mealName: String, logs: List<MealFoodLog>): View
-        fun defaultMealsCard(mealDefaults: List<String>): View
         fun waterCard(waterOunces: Int, startMillis: Long, endMillis: Long): View
         fun weightCard(weights: List<WeightEntry>): View
         fun mealLogCard(log: MealFoodLog): View
@@ -58,6 +56,7 @@ class NutritionScreens(
         fun showFoodDialog()
         fun showOpenFoodFactsSearchDialog()
         fun showBarcodeEntryPoint()
+        fun showMealDefaultsDialog()
         fun showWaterDialog()
         fun showWeightDialog()
         fun onNutritionChanged()
@@ -102,33 +101,31 @@ class NutritionScreens(
         val end = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
         val logs = store.getMealFoodLogs(callbacks.currentProfileId(), start, end)
 
+        val mealNames = callbacks.mealNamesForLogs(logs)
         content.addView(
-            callbacks.sectionTitle(
-                "Meals",
-                if (logs.isEmpty()) "No foods logged today" else callbacks.plural(logs.size.toLong(), "food entry", "food entries") + " today"
-            )
-        )
-        content.addView(callbacks.defaultMealsCard(store.getMealDefaults(callbacks.currentProfileId())))
-
-        val addMeal = ui.button("+ Log food", NourishColors.GREEN, NourishColors.GREEN_SOFT).apply {
-            setOnClickListener { callbacks.showLogFoodDialog("") }
-        }
-        content.addView(
-            addMeal,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(46)).apply {
-                topMargin = ui.dp(NourishSpacing.XXS)
-            }
-        )
-
-        if (logs.isEmpty()) {
-            callbacks.emptyState(
-                "Pick a saved food and add it into breakfast, lunch, dinner, or any meal you name.",
+            screenHeader(
+                "Meals today",
+                if (logs.isEmpty()) "Build today's meal log from your saved foods" else
+                    callbacks.plural(mealNames.size.toLong(), "meal", "meals") + " with " +
+                        callbacks.plural(logs.size.toLong(), "food entry", "food entries"),
                 "Log food"
             ) { callbacks.showLogFoodDialog("") }
+        )
+        content.addView(quickLogCard(store.getMealDefaults(callbacks.currentProfileId())))
+
+        if (logs.isEmpty()) {
+            content.addView(
+                emptyCollectionState(
+                    "No meals logged yet",
+                    "Choose a saved food and add it to breakfast, lunch, dinner, or any meal you name.",
+                    "Log the first food"
+                ) { callbacks.showLogFoodDialog("") }
+            )
             return
         }
 
-        callbacks.mealNamesForLogs(logs).forEach { mealName ->
+        content.addView(sectionHeader("Logged meals", "Nutrition totals are combined within each meal"))
+        mealNames.forEach { mealName ->
             val mealLogs = callbacks.logsForMeal(logs, mealName)
             content.addView(callbacks.mealTotalsCard(mealName, mealLogs))
             mealLogs.forEach { content.addView(callbacks.mealLogCard(it)) }
@@ -140,38 +137,37 @@ class NutritionScreens(
         val foods = store.getNutritionFoods(callbacks.currentProfileId())
 
         content.addView(
-            callbacks.sectionTitle(
-                "Saved",
-                if (savedMeals.isEmpty()) "No saved meal combinations yet" else callbacks.plural(savedMeals.size.toLong(), "saved meal", "saved meals")
-            )
-        )
-
-        val create = ui.button("+ Saved meal", NourishColors.GREEN, NourishColors.GREEN_SOFT).apply {
-            setOnClickListener { callbacks.showSavedMealDialog() }
-        }
-        content.addView(
-            create,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(46)).apply {
-                topMargin = ui.dp(NourishSpacing.XXS)
-            }
+            screenHeader(
+                "Saved meals",
+                if (savedMeals.isEmpty()) "Combine foods once and reuse them whenever you log" else
+                    callbacks.plural(savedMeals.size.toLong(), "reusable meal", "reusable meals"),
+                "Create meal"
+            ) { callbacks.showSavedMealDialog() }
         )
 
         if (foods.isEmpty()) {
-            callbacks.emptyState(
-                "Save food items first, then combine them into reusable meals.",
-                "Add food"
-            ) { callbacks.showFoodDialog() }
+            content.addView(
+                emptyCollectionState(
+                    "Add a food first",
+                    "Saved meals are assembled from foods in your personal food library.",
+                    "Add food"
+                ) { callbacks.showFoodDialog() }
+            )
             return
         }
 
         if (savedMeals.isEmpty()) {
-            callbacks.emptyState(
-                "Build a reusable meal from foods already saved in the app.",
-                "Create saved meal"
-            ) { callbacks.showSavedMealDialog() }
+            content.addView(
+                emptyCollectionState(
+                    "No saved meals yet",
+                    "Group foods you eat together so the whole meal can be logged in one step.",
+                    "Create saved meal"
+                ) { callbacks.showSavedMealDialog() }
+            )
             return
         }
 
+        content.addView(sectionHeader("Your meal library", "Log, edit, or remove a reusable meal"))
         savedMeals.forEach { content.addView(callbacks.savedMealCard(it)) }
     }
 
@@ -306,7 +302,22 @@ class NutritionScreens(
 
     private fun quickLogCard(mealDefaults: List<String>): LinearLayout = ui.card().apply {
         elevation = ui.dp(NourishShapes.ELEVATION_FLAT).toFloat()
-        addView(ui.displayText("Quick log", NourishTypography.BODY_LARGE, NourishColors.INK))
+        val heading = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                ui.displayText("Quick log", NourishTypography.BODY_LARGE, NourishColors.INK),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(
+                ui.button("Edit defaults", NourishColors.BLUE, Color.TRANSPARENT).apply {
+                    setSingleLine(true)
+                    setOnClickListener { callbacks.showMealDefaultsDialog() }
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(40))
+            )
+        }
+        addView(heading)
         addView(
             ui.text(
                 "Choose a usual meal or log without a preset.",
@@ -334,6 +345,63 @@ class NutritionScreens(
             }
             addView(row)
         }
+    }
+
+    private fun screenHeader(
+        title: String,
+        subtitle: String,
+        actionLabel: String,
+        action: () -> Unit
+    ): LinearLayout = LinearLayout(activity).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, ui.dp(NourishSpacing.XS), 0, ui.dp(NourishSpacing.XXS))
+
+        val copy = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(ui.displayText(title, NourishTypography.TITLE, NourishColors.INK))
+            addView(ui.text(subtitle, NourishTypography.LABEL, NourishColors.MUTED, Typeface.NORMAL))
+        }
+        addView(copy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(
+            ui.button(actionLabel, NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
+                setSingleLine(true)
+                setOnClickListener { action() }
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(44)).apply {
+                leftMargin = ui.dp(NourishSpacing.SM)
+            }
+        )
+    }
+
+    private fun emptyCollectionState(
+        title: String,
+        message: String,
+        actionLabel: String,
+        action: () -> Unit
+    ): LinearLayout = ui.card().apply {
+        elevation = ui.dp(NourishShapes.ELEVATION_FLAT).toFloat()
+        gravity = Gravity.CENTER_HORIZONTAL
+        addView(ui.displayText(title, NourishTypography.BODY_LARGE, NourishColors.INK).apply { gravity = Gravity.CENTER })
+        addView(
+            ui.text(message, NourishTypography.LABEL, NourishColors.MUTED, Typeface.NORMAL).apply {
+                gravity = Gravity.CENTER
+            },
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = ui.dp(NourishSpacing.XS)
+            }
+        )
+        addView(
+            ui.button(actionLabel, NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
+                setOnClickListener { action() }
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ui.dp(44)).apply {
+                topMargin = ui.dp(NourishSpacing.MD)
+            }
+        )
     }
 
     private fun trackingCard(waterOunces: Int, weights: List<WeightEntry>): LinearLayout = ui.card().apply {

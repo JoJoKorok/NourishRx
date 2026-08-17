@@ -21,7 +21,6 @@ import com.jojokorok.nourishrx.data.MealFoodLog;
 import com.jojokorok.nourishrx.data.Medication;
 import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.NutritionFood;
-import com.jojokorok.nourishrx.data.NutritionTotals;
 import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.SavedMeal;
 import com.jojokorok.nourishrx.data.WeightEntry;
@@ -32,6 +31,7 @@ import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionMealCards;
 import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionTrackingFlow;
@@ -86,6 +86,7 @@ public class MainActivity extends Activity {
     private MedicationScreens medicationScreens;
     private MedicationTodayFlow medicationTodayFlow;
     private NutritionFoodEditorFlow nutritionFoodEditorFlow;
+    private NutritionMealCards nutritionMealCards;
     private NutritionMealFlow nutritionMealFlow;
     private NutritionScreens nutritionScreens;
     private NutritionTrackingFlow nutritionTrackingFlow;
@@ -108,6 +109,7 @@ public class MainActivity extends Activity {
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
         nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
+        nutritionMealCards = new NutritionMealCards(this, store, ui, zoneId, nutritionMealCardCallbacks());
         nutritionTrackingFlow = new NutritionTrackingFlow(this, store, ui, zoneId, nutritionTrackingCallbacks());
         openFoodFactsFlow = new OpenFoodFactsFlow(this, store, ui, openFoodFactsCallbacks());
         barcodeLookupFlow = new BarcodeLookupFlow(
@@ -480,11 +482,6 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
-                return MainActivity.this.totalsFromMealLogs(logs);
-            }
-
-            @Override
             public View sectionTitle(String title, String subtitle) {
                 return MainActivity.this.sectionTitle(title, subtitle);
             }
@@ -496,12 +493,7 @@ public class MainActivity extends Activity {
 
             @Override
             public View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
-                return MainActivity.this.mealTotalsCard(mealName, logs);
-            }
-
-            @Override
-            public View defaultMealsCard(List<String> mealDefaults) {
-                return nutritionTrackingFlow.defaultMealsCard(mealDefaults);
+                return nutritionMealCards.mealSummaryCard(mealName, logs);
             }
 
             @Override
@@ -516,12 +508,12 @@ public class MainActivity extends Activity {
 
             @Override
             public View mealLogCard(MealFoodLog log) {
-                return nutritionMealFlow.mealLogCard(log);
+                return nutritionMealCards.mealLogCard(log);
             }
 
             @Override
             public View savedMealCard(SavedMeal savedMeal) {
-                return nutritionMealFlow.savedMealCard(savedMeal);
+                return nutritionMealCards.savedMealCard(savedMeal);
             }
 
             @Override
@@ -555,6 +547,11 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void showMealDefaultsDialog() {
+                nutritionTrackingFlow.showMealDefaultsDialog();
+            }
+
+            @Override
             public void showWaterDialog() {
                 nutritionTrackingFlow.showWaterDialog();
             }
@@ -567,6 +564,40 @@ public class MainActivity extends Activity {
             @Override
             public void onNutritionChanged() {
                 renderShell();
+            }
+        };
+    }
+
+    private NutritionMealCards.Callbacks nutritionMealCardCallbacks() {
+        return new NutritionMealCards.Callbacks() {
+            @Override
+            public void logFood(String mealName) {
+                nutritionMealFlow.showLogFoodDialog(mealName);
+            }
+
+            @Override
+            public void editFoodLog(MealFoodLog log) {
+                nutritionMealFlow.showLogFoodDialog(log);
+            }
+
+            @Override
+            public void deleteFoodLog(MealFoodLog log) {
+                nutritionMealFlow.confirmDeleteMealLog(log);
+            }
+
+            @Override
+            public void logSavedMeal(SavedMeal savedMeal) {
+                nutritionMealFlow.showLogSavedMealDialog(savedMeal);
+            }
+
+            @Override
+            public void editSavedMeal(SavedMeal savedMeal) {
+                nutritionMealFlow.showSavedMealDialog(savedMeal);
+            }
+
+            @Override
+            public void deleteSavedMeal(SavedMeal savedMeal) {
+                nutritionMealFlow.confirmDeleteSavedMeal(savedMeal);
             }
         };
     }
@@ -644,50 +675,6 @@ public class MainActivity extends Activity {
                 MainActivity.this.renderShell();
             }
         };
-    }
-
-    private View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
-        NutritionTotals totals = totalsFromMealLogs(logs);
-
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(mealName, 20, COLOR_INK, Typeface.BOLD));
-        details.addView(text(plural(logs.size(), "food entry", "food entries") + " in this meal", 13, COLOR_MUTED, Typeface.BOLD));
-        details.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
-        card.addView(top);
-
-        LinearLayout macros = new LinearLayout(this);
-        macros.setOrientation(LinearLayout.HORIZONTAL);
-        macros.setPadding(0, dp(12), 0, 0);
-        macros.addView(summaryPill(formatGrams(totals.proteinGrams) + " protein", COLOR_GREEN, COLOR_GREEN_SOFT));
-        macros.addView(summaryPill(formatGrams(totals.totalCarbsGrams) + " carbs", COLOR_BLUE, COLOR_BLUE_SOFT));
-        macros.addView(summaryPill(formatGrams(totals.totalFatGrams) + " fat", COLOR_GOLD, COLOR_GOLD_SOFT));
-        card.addView(macros);
-
-        Button logHere = button("+ Log here", COLOR_GREEN, COLOR_GREEN_SOFT);
-        logHere.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(mealName));
-        LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        logParams.topMargin = dp(12);
-        card.addView(logHere, logParams);
-        return card;
-    }
-
-    private NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
-        NutritionTotals totals = new NutritionTotals();
-        for (MealFoodLog log : logs) {
-            totals.addFood(log.food, log.servings);
-        }
-        return totals;
     }
 
     private View foodCard(NutritionFood food) {
@@ -810,13 +797,6 @@ public class MainActivity extends Activity {
 
     private String formatMg(float value) {
         return formatFloatInput(value) + "mg";
-    }
-
-    private String nutritionTotalsLine(NutritionTotals totals) {
-        return totals.calories + " cal - " +
-                formatGrams(totals.proteinGrams) + " protein - " +
-                formatGrams(totals.totalCarbsGrams) + " carbs - " +
-                formatGrams(totals.totalFatGrams) + " fat";
     }
 
     private ArrayList<String> mealNamesForLogs(List<MealFoodLog> logs) {

@@ -56,45 +56,6 @@ public class NutritionTrackingFlow {
         this.callbacks = callbacks;
     }
 
-    public View defaultMealsCard(List<String> mealDefaults) {
-        LinearLayout card = ui.card();
-        LinearLayout top = new LinearLayout(activity);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(activity);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(ui.text("Default meals", 19, NourishColors.INK, Typeface.BOLD));
-        details.addView(ui.text(
-                plural(mealDefaults.size(), "saved meal name", "saved meal names"),
-                13,
-                NourishColors.MUTED,
-                Typeface.BOLD
-        ));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        Button edit = ui.button("Edit", NourishColors.BLUE, NourishColors.BLUE_SOFT);
-        edit.setOnClickListener(view -> showMealDefaultsDialog());
-        top.addView(edit, compactButtonParams());
-        card.addView(top);
-
-        for (String mealName : mealDefaults) {
-            LinearLayout row = new LinearLayout(activity);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, ui.dp(10), 0, 0);
-
-            TextView name = ui.text(mealName, 15, NourishColors.INK, Typeface.BOLD);
-            row.addView(name, new LinearLayout.LayoutParams(0, ui.dp(42), 1));
-
-            Button log = ui.button("Log", NourishColors.GREEN, NourishColors.GREEN_SOFT);
-            log.setOnClickListener(view -> callbacks.showLogFoodDialog(mealName));
-            row.addView(log, new LinearLayout.LayoutParams(ui.dp(88), ui.dp(42)));
-            card.addView(row);
-        }
-        return card;
-    }
-
     public View waterCard(int waterOunces, long startMillis, long endMillis) {
         LinearLayout card = ui.card();
         LinearLayout top = new LinearLayout(activity);
@@ -182,7 +143,7 @@ public class NutritionTrackingFlow {
         return card;
     }
 
-    private void showMealDefaultsDialog() {
+    public void showMealDefaultsDialog() {
         LinearLayout form = new LinearLayout(activity);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
@@ -403,10 +364,6 @@ public class NutritionTrackingFlow {
             return String.valueOf(Math.round(pounds));
         }
         return String.format(Locale.getDefault(), "%.1f", pounds);
-    }
-
-    private String plural(long count, String singular, String plural) {
-        return count + " " + (count == 1 ? singular : plural);
     }
 
     private int parseInt(EditText field, int fallback) {
