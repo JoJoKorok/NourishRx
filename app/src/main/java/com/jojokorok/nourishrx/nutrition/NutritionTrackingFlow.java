@@ -2,6 +2,8 @@ package com.jojokorok.nourishrx.nutrition;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.text.InputType;
 import android.view.Gravity;
@@ -10,12 +12,16 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.ui.NourishColors;
+import com.jojokorok.nourishrx.ui.NourishShapes;
+import com.jojokorok.nourishrx.ui.NourishSpacing;
+import com.jojokorok.nourishrx.ui.NourishTypography;
 import com.jojokorok.nourishrx.ui.NourishUi;
 
 import java.time.Instant;
@@ -58,40 +64,91 @@ public class NutritionTrackingFlow {
 
     public View waterCard(int waterOunces, long startMillis, long endMillis) {
         LinearLayout card = ui.card();
+        card.setElevation(ui.dp(NourishShapes.ELEVATION_FLAT));
         LinearLayout top = new LinearLayout(activity);
         top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setGravity(Gravity.TOP);
 
         LinearLayout details = new LinearLayout(activity);
         details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(ui.text("Water", 19, NourishColors.INK, Typeface.BOLD));
-        details.addView(ui.text(waterOunces + " oz today", 14, NourishColors.MUTED, Typeface.BOLD));
+        details.addView(ui.displayText(
+                "Water",
+                NourishTypography.BODY_LARGE,
+                NourishColors.INK
+        ));
+        details.addView(
+                ui.text(
+                        waterOunces + " oz logged today",
+                        NourishTypography.LABEL,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                wrapParams(NourishSpacing.XXS)
+        );
         top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(ui.statusBadge(waterOunces >= 64 ? "Hydrated" : "Track"));
+        top.addView(waterStatusBadge(waterOunces >= 64));
         card.addView(top);
 
+        LinearLayout progressLabels = new LinearLayout(activity);
+        progressLabels.setOrientation(LinearLayout.HORIZONTAL);
+        progressLabels.setGravity(Gravity.CENTER_VERTICAL);
+        progressLabels.addView(
+                ui.text(
+                        "Daily progress",
+                        NourishTypography.CAPTION,
+                        NourishColors.INK_SECONDARY,
+                        Typeface.BOLD
+                ),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1)
+        );
+        TextView reference = ui.text(
+                Math.min(waterOunces, 64) + " of 64 oz",
+                NourishTypography.CAPTION,
+                NourishColors.MUTED,
+                Typeface.NORMAL
+        );
+        reference.setGravity(Gravity.RIGHT);
+        progressLabels.addView(reference);
+        card.addView(progressLabels, wrapParams(NourishSpacing.MD));
+
+        ProgressBar progress = new ProgressBar(
+                activity,
+                null,
+                android.R.attr.progressBarStyleHorizontal
+        );
+        progress.setMax(64);
+        progress.setProgress(Math.min(waterOunces, 64));
+        progress.setProgressTintList(ColorStateList.valueOf(NourishColors.GREEN));
+        progress.setProgressBackgroundTintList(ColorStateList.valueOf(NourishColors.SURFACE_SUBTLE));
+        card.addView(progress, matchParams(8, NourishSpacing.XS));
+
+        card.addView(sectionLabel("Quick add"));
         LinearLayout actions = actionRow();
-        Button addEight = ui.button("+8 oz", NourishColors.BLUE, NourishColors.BLUE_SOFT);
+        Button addEight = ui.button("+8 oz", NourishColors.BLUE, Color.TRANSPARENT);
+        addEight.setSingleLine(true);
         addEight.setOnClickListener(view -> addWaterAndRefresh(8));
-        actions.addView(addEight, weightedActionParams());
+        actions.addView(addEight, weightedActionParams(false));
 
-        Button addSixteen = ui.button("+16 oz", NourishColors.GREEN, NourishColors.GREEN_SOFT);
+        Button addSixteen = ui.button("+16 oz", NourishColors.GREEN_DARK, Color.TRANSPARENT);
+        addSixteen.setSingleLine(true);
         addSixteen.setOnClickListener(view -> addWaterAndRefresh(16));
-        actions.addView(addSixteen, weightedActionParams());
+        actions.addView(addSixteen, weightedActionParams(false));
 
-        Button custom = ui.button("Custom", NourishColors.GOLD, NourishColors.GOLD_SOFT);
+        Button custom = ui.button("Custom", NourishColors.GOLD, Color.TRANSPARENT);
+        custom.setSingleLine(true);
         custom.setOnClickListener(view -> showWaterDialog());
-        actions.addView(custom, weightedActionParams());
+        actions.addView(custom, weightedActionParams(true));
         card.addView(actions);
 
         if (waterOunces > 0) {
-            Button clear = ui.button("Clear today", NourishColors.CORAL, NourishColors.CORAL_SOFT);
+            Button clear = ui.button("Clear today's water", NourishColors.CORAL, Color.TRANSPARENT);
+            clear.setSingleLine(true);
             clear.setOnClickListener(view -> confirmClearWater(startMillis, endMillis));
             LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ui.dp(44)
             );
-            clearParams.topMargin = ui.dp(10);
+            clearParams.topMargin = ui.dp(NourishSpacing.XS);
             card.addView(clear, clearParams);
         }
         return card;
@@ -99,45 +156,88 @@ public class NutritionTrackingFlow {
 
     public View weightCard(List<WeightEntry> weights) {
         LinearLayout card = ui.card();
+        card.setElevation(ui.dp(NourishShapes.ELEVATION_FLAT));
         LinearLayout top = new LinearLayout(activity);
         top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setGravity(Gravity.TOP);
 
         LinearLayout details = new LinearLayout(activity);
         details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(ui.text("Weight", 19, NourishColors.INK, Typeface.BOLD));
+        details.addView(ui.displayText(
+                "Weight",
+                NourishTypography.BODY_LARGE,
+                NourishColors.INK
+        ));
         if (weights.isEmpty()) {
-            details.addView(ui.text("No weight logged yet", 14, NourishColors.MUTED, Typeface.BOLD));
+            details.addView(
+                    ui.text(
+                            "No weight logged yet",
+                            NourishTypography.LABEL,
+                            NourishColors.MUTED,
+                            Typeface.NORMAL
+                    ),
+                    wrapParams(NourishSpacing.XXS)
+            );
         } else {
             WeightEntry latest = weights.get(0);
-            details.addView(ui.text(formatPounds(latest.pounds) + " lb latest", 14, NourishColors.MUTED, Typeface.BOLD));
-            details.addView(ui.text(formatShortDateTime(latest.loggedAt), 13, NourishColors.MUTED, Typeface.NORMAL));
+            details.addView(
+                    ui.displayText(
+                            formatPounds(latest.pounds) + " lb",
+                            NourishTypography.TITLE,
+                            NourishColors.INK
+                    ),
+                    wrapParams(NourishSpacing.XS)
+            );
+            details.addView(ui.text(
+                    "Latest entry - " + formatShortDateTime(latest.loggedAt),
+                    NourishTypography.CAPTION,
+                    NourishColors.MUTED,
+                    Typeface.NORMAL
+            ));
         }
         top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-        Button add = ui.button("+ Weight", NourishColors.GREEN, NourishColors.GREEN_SOFT);
+        Button add = ui.button("Log weight", NourishColors.ON_ACCENT, NourishColors.GREEN);
+        add.setSingleLine(true);
         add.setOnClickListener(view -> showWeightDialog());
-        top.addView(add, compactButtonParams());
+        LinearLayout.LayoutParams addParams = compactButtonParams();
+        addParams.leftMargin = ui.dp(NourishSpacing.SM);
+        top.addView(add, addParams);
         card.addView(top);
 
+        if (!weights.isEmpty()) {
+            card.addView(sectionLabel("Recent entries"));
+        }
         for (WeightEntry entry : weights) {
             LinearLayout row = new LinearLayout(activity);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, ui.dp(10), 0, 0);
+            row.setPadding(0, ui.dp(NourishSpacing.XS), 0, ui.dp(NourishSpacing.XS));
 
             LinearLayout label = new LinearLayout(activity);
             label.setOrientation(LinearLayout.VERTICAL);
-            label.addView(ui.text(formatPounds(entry.pounds) + " lb", 15, NourishColors.INK, Typeface.BOLD));
-            label.addView(ui.text(formatShortDateTime(entry.loggedAt), 12, NourishColors.MUTED, Typeface.NORMAL));
+            label.addView(ui.text(
+                    formatPounds(entry.pounds) + " lb",
+                    NourishTypography.BODY,
+                    NourishColors.INK,
+                    Typeface.BOLD
+            ));
+            label.addView(ui.text(
+                    formatShortDateTime(entry.loggedAt),
+                    NourishTypography.CAPTION,
+                    NourishColors.MUTED,
+                    Typeface.NORMAL
+            ));
             row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-            Button delete = ui.button("Delete", NourishColors.CORAL, NourishColors.CORAL_SOFT);
+            Button delete = ui.button("Remove", NourishColors.CORAL, Color.TRANSPARENT);
+            delete.setSingleLine(true);
             delete.setOnClickListener(view -> {
                 store.deleteWeightEntry(entry.id);
                 callbacks.onTrackingChanged();
             });
-            row.addView(delete, new LinearLayout.LayoutParams(ui.dp(94), ui.dp(40)));
+            row.addView(delete, new LinearLayout.LayoutParams(ui.dp(92), ui.dp(40)));
+            card.addView(divider());
             card.addView(row);
         }
         return card;
@@ -253,20 +353,23 @@ public class NutritionTrackingFlow {
     }
 
     public void showWaterDialog() {
-        LinearLayout form = new LinearLayout(activity);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
-        EditText ouncesField = ui.field("Ounces", "", InputType.TYPE_CLASS_NUMBER);
+        LinearLayout form = dialogBody();
+        form.addView(dialogHeader(
+                "Add water",
+                "Log a custom amount for the current profile."
+        ));
+        form.addView(ui.fieldLabel("Amount in ounces"));
+        EditText ouncesField = ui.field("Example: 12", "", InputType.TYPE_CLASS_NUMBER);
         form.addView(ouncesField);
 
         AlertDialog dialog = new AlertDialog.Builder(activity)
-                .setTitle("Add water")
                 .setView(form)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Add", null)
                 .create();
 
         dialog.setOnShowListener(dialogInterface -> {
+            styleDialogActions(dialog, false);
             Button add = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             add.setOnClickListener(view -> {
                 int ounces = parseInt(ouncesField, 0);
@@ -278,42 +381,52 @@ public class NutritionTrackingFlow {
                 dialog.dismiss();
                 callbacks.onTrackingChanged();
             });
+            ouncesField.requestFocus();
         });
 
         dialog.show();
     }
 
     private void confirmClearWater(long startMillis, long endMillis) {
-        new AlertDialog.Builder(activity)
-                .setTitle("Clear today's water?")
-                .setMessage("This removes all water entries for today.")
+        LinearLayout content = dialogBody();
+        content.addView(dialogHeader(
+                "Clear today's water?",
+                "This removes every water entry logged today for the current profile."
+        ));
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setView(content)
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton("Clear", (dialog, which) -> {
+                .setPositiveButton("Clear", (ignored, which) -> {
                     store.clearWater(callbacks.currentProfileId(), startMillis, endMillis);
                     callbacks.onTrackingChanged();
                 })
-                .show();
+                .create();
+        dialog.setOnShowListener(ignored -> styleDialogActions(dialog, true));
+        dialog.show();
     }
 
     public void showWeightDialog() {
-        LinearLayout form = new LinearLayout(activity);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
+        LinearLayout form = dialogBody();
+        form.addView(dialogHeader(
+                "Log weight",
+                "Add a dated weight entry for the current profile."
+        ));
+        form.addView(ui.fieldLabel("Weight in pounds"));
         EditText weightField = ui.field(
-                "Weight in pounds",
+                "Example: 165.5",
                 "",
                 InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
         form.addView(weightField);
 
         AlertDialog dialog = new AlertDialog.Builder(activity)
-                .setTitle("Log weight")
                 .setView(form)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", null)
                 .create();
 
         dialog.setOnShowListener(dialogInterface -> {
+            styleDialogActions(dialog, false);
             Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             save.setOnClickListener(view -> {
                 float pounds = parseFloat(weightField, 0.0f);
@@ -330,6 +443,7 @@ public class NutritionTrackingFlow {
                 dialog.dismiss();
                 callbacks.onTrackingChanged();
             });
+            weightField.requestFocus();
         });
 
         dialog.show();
@@ -349,9 +463,118 @@ public class NutritionTrackingFlow {
         );
     }
 
-    private LinearLayout.LayoutParams weightedActionParams() {
+    private LinearLayout.LayoutParams weightedActionParams(boolean last) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ui.dp(44), 1);
-        params.rightMargin = ui.dp(8);
+        if (!last) {
+            params.rightMargin = ui.dp(NourishSpacing.XS);
+        }
+        return params;
+    }
+
+    private View sectionLabel(String title) {
+        LinearLayout section = new LinearLayout(activity);
+        section.setOrientation(LinearLayout.VERTICAL);
+        section.setPadding(0, ui.dp(NourishSpacing.LG), 0, 0);
+        section.addView(divider());
+        section.addView(
+                ui.text(
+                        title,
+                        NourishTypography.CAPTION,
+                        NourishColors.INK_SECONDARY,
+                        Typeface.BOLD
+                ),
+                wrapParams(NourishSpacing.SM)
+        );
+        return section;
+    }
+
+    private View waterStatusBadge(boolean complete) {
+        TextView badge = ui.text(
+                complete ? "Hydrated" : "In progress",
+                NourishTypography.CAPTION,
+                complete ? NourishColors.GREEN_DARK : NourishColors.BLUE,
+                Typeface.BOLD
+        );
+        badge.setGravity(Gravity.CENTER);
+        badge.setSingleLine(true);
+        badge.setPadding(
+                ui.dp(NourishSpacing.XS),
+                ui.dp(NourishSpacing.XXS),
+                ui.dp(NourishSpacing.XS),
+                ui.dp(NourishSpacing.XXS)
+        );
+        badge.setBackground(ui.rounded(
+                complete ? NourishColors.GREEN_SOFT : NourishColors.BLUE_SOFT,
+                Color.TRANSPARENT,
+                ui.dp(NourishShapes.RADIUS_CONTROL)
+        ));
+        return badge;
+    }
+
+    private View divider() {
+        View divider = new View(activity);
+        divider.setBackgroundColor(NourishColors.DIVIDER);
+        divider.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ui.dp(1)
+        ));
+        return divider;
+    }
+
+    private LinearLayout dialogBody() {
+        LinearLayout body = new LinearLayout(activity);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(
+                ui.dp(NourishSpacing.LG),
+                ui.dp(NourishSpacing.MD),
+                ui.dp(NourishSpacing.LG),
+                ui.dp(NourishSpacing.SM)
+        );
+        return body;
+    }
+
+    private View dialogHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(0, 0, 0, ui.dp(NourishSpacing.XS));
+        header.addView(ui.displayText(title, NourishTypography.TITLE, NourishColors.INK));
+        header.addView(
+                ui.text(
+                        subtitle,
+                        NourishTypography.LABEL,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                wrapParams(NourishSpacing.XXS)
+        );
+        return header;
+    }
+
+    private void styleDialogActions(AlertDialog dialog, boolean destructive) {
+        Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        positive.setTextColor(destructive ? NourishColors.CORAL : NourishColors.GREEN);
+        positive.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.BOLD));
+
+        Button negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        negative.setTextColor(NourishColors.INK_SECONDARY);
+        negative.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.NORMAL));
+    }
+
+    private LinearLayout.LayoutParams matchParams(int height, int topMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ui.dp(height)
+        );
+        params.topMargin = ui.dp(topMargin);
+        return params;
+    }
+
+    private LinearLayout.LayoutParams wrapParams(int topMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = ui.dp(topMargin);
         return params;
     }
 
