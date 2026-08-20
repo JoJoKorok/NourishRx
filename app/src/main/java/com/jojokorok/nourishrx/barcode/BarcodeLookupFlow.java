@@ -7,7 +7,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.os.Build;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.View;
@@ -181,17 +180,14 @@ public class BarcodeLookupFlow {
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            activity.requestPermissions(
-                    new String[]{Manifest.permission.CAMERA},
-                    cameraPermissionRequestCode
-            );
-        }
+        activity.requestPermissions(
+                new String[]{Manifest.permission.CAMERA},
+                cameraPermissionRequestCode
+        );
     }
 
     private boolean hasCameraPermission() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                activity.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+        return activity.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void launchScanner() {

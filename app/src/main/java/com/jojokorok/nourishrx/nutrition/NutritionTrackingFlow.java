@@ -107,7 +107,7 @@ public class NutritionTrackingFlow {
                 NourishColors.MUTED,
                 Typeface.NORMAL
         );
-        reference.setGravity(Gravity.RIGHT);
+        reference.setGravity(Gravity.END);
         progressLabels.addView(reference);
         card.addView(progressLabels, wrapParams(NourishSpacing.MD));
 

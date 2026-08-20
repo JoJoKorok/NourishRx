@@ -538,7 +538,7 @@ public class OpenFoodFactsFlow {
                 NourishColors.INK,
                 Typeface.BOLD
         );
-        valueView.setGravity(Gravity.RIGHT);
+        valueView.setGravity(Gravity.END);
         row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         return row;
     }

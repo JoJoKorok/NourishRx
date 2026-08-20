@@ -809,21 +809,10 @@ public class MainActivity extends Activity {
 
     private View sectionTitle(String title, String subtitle) {
         LinearLayout group = new LinearLayout(this);
-        group.setOrientation(LinearLayout.HORIZONTAL);
-        group.setGravity(Gravity.CENTER_VERTICAL);
+        group.setOrientation(LinearLayout.VERTICAL);
         group.setPadding(0, dp(8), 0, dp(8));
-
-        View marker = new View(this);
-        marker.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(3)));
-        LinearLayout.LayoutParams markerParams = new LinearLayout.LayoutParams(dp(5), dp(42));
-        markerParams.rightMargin = dp(10);
-        group.addView(marker, markerParams);
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        labels.addView(text(title, 21, COLOR_INK, Typeface.BOLD));
-        labels.addView(text(subtitle, 13, COLOR_MUTED, Typeface.BOLD));
-        group.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        group.addView(text(title, 20, COLOR_INK, Typeface.BOLD));
+        group.addView(text(subtitle, 13, COLOR_MUTED, Typeface.NORMAL));
         return group;
     }
 
@@ -831,21 +820,14 @@ public class MainActivity extends Activity {
         LinearLayout state = new LinearLayout(this);
         state.setOrientation(LinearLayout.VERTICAL);
         state.setGravity(Gravity.CENTER_HORIZONTAL);
-        state.setPadding(dp(18), dp(28), dp(18), dp(28));
-        state.setBackground(roundedGradient(
-                new int[]{
-                        Color.rgb(255, 251, 239),
-                        Color.rgb(229, 244, 238)
-                },
-                dp(24)
-        ));
-        state.setElevation(dp(1));
+        state.setPadding(dp(20), dp(24), dp(20), dp(24));
+        state.setBackground(rounded(NourishColors.CARD, NourishColors.BORDER, dp(8)));
 
-        TextView mark = text("Rx", 24, Color.WHITE, Typeface.BOLD);
+        TextView mark = text("Rx", 16, NourishColors.GREEN_DARK, Typeface.BOLD);
         mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(28)));
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(56), dp(56));
-        markParams.bottomMargin = dp(14);
+        mark.setBackground(rounded(COLOR_GREEN_SOFT, Color.TRANSPARENT, dp(8)));
+        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(44), dp(36));
+        markParams.bottomMargin = dp(12);
         state.addView(mark, markParams);
 
         TextView messageView = text(message, 16, COLOR_MUTED, Typeface.BOLD);
@@ -856,7 +838,7 @@ public class MainActivity extends Activity {
         button.setOnClickListener(listener);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(44)
+                dp(48)
         );
         params.topMargin = dp(16);
         state.addView(button, params);
@@ -879,10 +861,6 @@ public class MainActivity extends Activity {
 
     private GradientDrawable rounded(int color, int strokeColor, int radius) {
         return ui.rounded(color, strokeColor, radius);
-    }
-
-    private GradientDrawable roundedGradient(int[] colors, int radius) {
-        return ui.roundedGradient(colors, radius);
     }
 
     private String plural(long count, String singular, String plural) {

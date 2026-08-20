@@ -152,7 +152,7 @@ class NourishUi(private val context: Context) {
         setTextColor(textColor)
         textSize = NourishTypography.LABEL.toFloat()
         typeface = Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.NORMAL)
-        minHeight = dp(44)
+        minHeight = dp(48)
         minWidth = dp(68)
         setPadding(dp(NourishSpacing.SM), 0, dp(NourishSpacing.SM), 0)
 

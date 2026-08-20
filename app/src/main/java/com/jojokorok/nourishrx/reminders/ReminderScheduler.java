@@ -87,7 +87,9 @@ public final class ReminderScheduler {
     }
 
     public static Intent exactAlarmSettingsIntent(Context context) {
-        Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+        Intent intent = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                : new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         intent.setData(Uri.parse("package:" + context.getPackageName()));
         return intent;
     }
@@ -97,9 +99,6 @@ public final class ReminderScheduler {
     }
 
     public static void ensureNotificationChannel(Context context, Profile profile) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
         NotificationManager notificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (notificationManager == null) {
@@ -185,9 +184,6 @@ public final class ReminderScheduler {
     }
 
     private static void ensureNotificationChannel(Context context, MedicationStore store) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
         ensureNotificationChannel(context, (Profile) null);
         for (Profile profile : store.getProfiles()) {
             ensureNotificationChannel(context, profile);

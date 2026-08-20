@@ -51,6 +51,10 @@ public class ProfilePhotoFlow {
     private final NourishUi ui;
     private final int requestProfilePhoto;
     private final Callbacks callbacks;
+    private final Paint bitmapPaint = new Paint(
+            Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG
+    );
+    private final RectF bitmapDestination = new RectF();
 
     public ProfilePhotoFlow(
             Activity activity,
@@ -143,7 +147,7 @@ public class ProfilePhotoFlow {
                 NourishColors.BLUE,
                 Typeface.BOLD
         );
-        zoomValue.setGravity(Gravity.RIGHT);
+        zoomValue.setGravity(Gravity.END);
         zoomHeader.addView(zoomValue);
         form.addView(zoomHeader, matchWrapParams(NourishSpacing.MD));
 
@@ -345,7 +349,6 @@ public class ProfilePhotoFlow {
             return;
         }
 
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
         float safeZoom = clamp(zoom, 1.0f, 3.0f, 1.0f);
         float scale = Math.max(frame.width() / source.getWidth(), frame.height() / source.getHeight()) * safeZoom;
         float destinationWidth = source.getWidth() * scale;
@@ -354,9 +357,9 @@ public class ProfilePhotoFlow {
         float panY = Math.max(0.0f, (destinationHeight - frame.height()) / 2.0f);
         float left = frame.centerX() - destinationWidth / 2.0f + clamp(offsetX, -1.0f, 1.0f, 0.0f) * panX;
         float top = frame.centerY() - destinationHeight / 2.0f + clamp(offsetY, -1.0f, 1.0f, 0.0f) * panY;
-        RectF destination = new RectF(left, top, left + destinationWidth, top + destinationHeight);
+        bitmapDestination.set(left, top, left + destinationWidth, top + destinationHeight);
         canvas.drawColor(NourishColors.CARD);
-        canvas.drawBitmap(source, null, destination, paint);
+        canvas.drawBitmap(source, null, bitmapDestination, bitmapPaint);
     }
 
     private float clamp(float value, float min, float max, float fallback) {
@@ -485,6 +488,9 @@ public class ProfilePhotoFlow {
         private float pinchStartDistance;
         private float pinchStartZoom;
         private Runnable onFrameChanged;
+        private final RectF frame = new RectF();
+        private final Path clipPath = new Path();
+        private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         ProfilePhotoEditorView(Bitmap bitmap) {
             super(activity);
@@ -494,6 +500,9 @@ public class ProfilePhotoFlow {
                     NourishColors.BORDER,
                     ui.dp(NourishShapes.RADIUS_CARD)
             ));
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(ui.dp(2));
+            borderPaint.setColor(NourishColors.GREEN);
         }
 
         void setOnFrameChangedListener(Runnable listener) {
@@ -557,18 +566,13 @@ public class ProfilePhotoFlow {
             RectF frame = editorFrame();
             float radius = Math.min(frame.width(), frame.height()) / 2.0f;
 
-            Path clip = new Path();
-            clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
+            clipPath.reset();
+            clipPath.addRoundRect(frame, radius, radius, Path.Direction.CW);
             canvas.save();
-            canvas.clipPath(clip);
+            canvas.clipPath(clipPath);
             drawCroppedBitmap(canvas, bitmap, frame, zoom, offsetX, offsetY);
             canvas.restore();
-
-            Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
-            border.setStyle(Paint.Style.STROKE);
-            border.setStrokeWidth(ui.dp(2));
-            border.setColor(NourishColors.GREEN);
-            canvas.drawRoundRect(frame, radius, radius, border);
+            canvas.drawRoundRect(frame, radius, radius, borderPaint);
         }
 
         @Override
@@ -599,11 +603,21 @@ public class ProfilePhotoFlow {
                 }
                 return true;
             }
-            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
-                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                performClick();
                 getParent().requestDisallowInterceptTouchEvent(false);
                 return true;
             }
+            if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
             return true;
         }
 
@@ -619,7 +633,8 @@ public class ProfilePhotoFlow {
             }
             float left = (getWidth() - frameWidth) / 2.0f;
             float top = (getHeight() - frameHeight) / 2.0f;
-            return new RectF(left, top, left + frameWidth, top + frameHeight);
+            frame.set(left, top, left + frameWidth, top + frameHeight);
+            return frame;
         }
 
         private void panByPixels(float deltaX, float deltaY) {

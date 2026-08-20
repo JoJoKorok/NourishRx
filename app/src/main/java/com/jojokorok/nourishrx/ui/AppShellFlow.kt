@@ -113,7 +113,7 @@ class AppShellFlow(
             modeSwitchRow(),
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ui.dp(44)
+                ui.dp(56)
             ).apply {
                 topMargin = ui.dp(NourishSpacing.MD)
             }
@@ -129,7 +129,7 @@ class AppShellFlow(
     private fun brandBar(): LinearLayout = LinearLayout(activity).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        minimumHeight = ui.dp(44)
+        minimumHeight = ui.dp(48)
 
         val brand = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -138,7 +138,7 @@ class AppShellFlow(
         val logo = ImageView(activity).apply {
             setImageResource(R.mipmap.ic_launcher)
             scaleType = ImageView.ScaleType.CENTER_CROP
-            contentDescription = "NourishRx"
+            contentDescription = null
         }
         brand.addView(
             logo,
@@ -147,7 +147,7 @@ class AppShellFlow(
             }
         )
         brand.addView(ui.displayText("NourishRx", NourishTypography.BODY_LARGE, NourishColors.GREEN_DARK))
-        addView(brand, LinearLayout.LayoutParams(0, ui.dp(44), 1f))
+        addView(brand, LinearLayout.LayoutParams(0, ui.dp(48), 1f))
 
         val showingAbout = callbacks.currentTab() == TAB_ABOUT
         val about = ui.button(
@@ -159,7 +159,7 @@ class AppShellFlow(
         }
         addView(
             about,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(40)).apply {
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(48)).apply {
                 rightMargin = ui.dp(NourishSpacing.XS)
             }
         )
@@ -167,7 +167,7 @@ class AppShellFlow(
         val alerts = ui.button(callbacks.alertsLabel(), callbacks.alertColor(), Color.TRANSPARENT).apply {
             setOnClickListener { callbacks.handleAlertsTap() }
         }
-        addView(alerts, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(40)))
+        addView(alerts, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(48)))
     }
 
     private fun profileRow(nutritionMode: Boolean): LinearLayout = LinearLayout(activity).apply {
@@ -180,6 +180,7 @@ class AppShellFlow(
             gravity = Gravity.CENTER_VERTICAL
             isClickable = true
             isFocusable = true
+            minimumHeight = ui.dp(48)
             contentDescription = "Manage profile for ${profile.name}"
             setOnClickListener { callbacks.showProfiles() }
         }
@@ -235,7 +236,7 @@ class AppShellFlow(
         }
         addView(
             quickAdd,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(44)).apply {
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(48)).apply {
                 leftMargin = ui.dp(NourishSpacing.SM)
             }
         )
@@ -339,7 +340,7 @@ class AppShellFlow(
             if (selected) NourishColors.GREEN else Color.TRANSPARENT
         ).apply {
             setOnClickListener { callbacks.selectMode(mode) }
-            layoutParams = LinearLayout.LayoutParams(0, ui.dp(36), 1f).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ui.dp(48), 1f).apply {
                 leftMargin = ui.dp(2)
                 rightMargin = ui.dp(2)
             }
