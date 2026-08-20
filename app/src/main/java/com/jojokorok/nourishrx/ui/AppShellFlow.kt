@@ -201,21 +201,29 @@ class AppShellFlow(
             orientation = LinearLayout.VERTICAL
         }
         val headline = ui.displayText(
-            "${greeting()}, ${profile.name}",
+            greeting(),
             NourishTypography.TITLE,
             NourishColors.INK
         ).apply {
             setSingleLine(true)
-            ellipsize = TextUtils.TruncateAt.END
+            setAutoSizeTextTypeUniformWithConfiguration(
+                17,
+                NourishTypography.TITLE,
+                1,
+                TypedValue.COMPLEX_UNIT_SP
+            )
         }
         titleGroup.addView(headline)
         titleGroup.addView(
             ui.text(
-                LocalDate.now(zoneId).format(dateFormatter),
+                "${profile.name} - ${LocalDate.now(zoneId).format(dateFormatter)}",
                 NourishTypography.LABEL,
                 NourishColors.MUTED,
                 Typeface.NORMAL
-            )
+            ).apply {
+                setSingleLine(true)
+                ellipsize = TextUtils.TruncateAt.END
+            }
         )
         identity.addView(titleGroup, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
