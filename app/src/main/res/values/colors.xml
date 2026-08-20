@@ -1,8 +1,14 @@
 <resources>
-    <color name="surface">#F6F2E8</color>
-    <color name="ink">#202532</color>
-    <color name="accent_green">#207864</color>
-    <color name="accent_coral">#D65F49</color>
-    <color name="accent_blue">#466FA8</color>
+    <color name="surface">#F5F8F6</color>
+    <color name="surface_subtle">#EDF3F0</color>
+    <color name="card">#FFFFFF</color>
+    <color name="ink">#1B2521</color>
+    <color name="ink_secondary">#45514B</color>
+    <color name="muted">#68766F</color>
+    <color name="accent_green">#167A5B</color>
+    <color name="accent_green_dark">#0E5B44</color>
+    <color name="accent_coral">#C85643</color>
+    <color name="accent_blue">#386A8C</color>
+    <color name="border">#D9E2DD</color>
     <color name="launcher_background">#F5FBFA</color>
 </resources>

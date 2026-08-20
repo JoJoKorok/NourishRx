@@ -5,8 +5,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.Typeface;
-import android.os.Build;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.View;
@@ -23,6 +23,9 @@ import com.jojokorok.nourishrx.api.OpenFoodFactsClient;
 import com.jojokorok.nourishrx.data.NutritionFood;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.ui.NourishColors;
+import com.jojokorok.nourishrx.ui.NourishShapes;
+import com.jojokorok.nourishrx.ui.NourishSpacing;
+import com.jojokorok.nourishrx.ui.NourishTypography;
 import com.jojokorok.nourishrx.ui.NourishUi;
 
 public class BarcodeLookupFlow {
@@ -72,7 +75,11 @@ public class BarcodeLookupFlow {
             Toast.makeText(activity, "Camera access enabled for barcode scanning.", Toast.LENGTH_SHORT).show();
             launchScanner();
         } else {
-            Toast.makeText(activity, "Camera access is off. Manual barcode lookup still works.", Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    activity,
+                    "Camera access is off. Manual barcode lookup still works.",
+                    Toast.LENGTH_LONG
+            ).show();
         }
     }
 
@@ -86,56 +93,69 @@ public class BarcodeLookupFlow {
     }
 
     private void showLookupDialog(String initialBarcode, boolean autoLookup) {
-        LinearLayout body = new LinearLayout(activity);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
+        LinearLayout body = dialogBody();
+        body.addView(dialogHeader(
+                "Barcode lookup",
+                "Scan a package or enter its UPC/EAN number to review the food before saving."
+        ));
 
-        TextView status = ui.text("", 15, barcodeStatusColor(), Typeface.BOLD);
+        TextView status = ui.text(
+                "",
+                NourishTypography.LABEL,
+                barcodeStatusColor(),
+                Typeface.BOLD
+        );
         refreshBarcodeStatus(status);
-        body.addView(barcodeAccessPanel(status));
+        body.addView(barcodeAccessPanel(status), wrapParams(NourishSpacing.MD));
 
-        EditText barcodeField = ui.field("Barcode number", initialBarcode, InputType.TYPE_CLASS_NUMBER);
+        body.addView(sectionHeader(
+                "Scan with camera",
+                "Keep the barcode centered inside the guide until it is detected."
+        ));
+        Button camera = ui.button("Open camera scanner", NourishColors.ON_ACCENT, NourishColors.GREEN);
+        camera.setSingleLine(true);
+        camera.setOnClickListener(view -> requestCameraAccess());
+        body.addView(camera, matchParams(48, NourishSpacing.SM));
+
+        body.addView(sectionHeader(
+                "Enter barcode manually",
+                "Use the digits printed beneath the barcode when scanning is not convenient."
+        ));
+        body.addView(ui.fieldLabel("UPC or EAN number"));
+        EditText barcodeField = ui.field(
+                "Example: 012345678905",
+                initialBarcode,
+                InputType.TYPE_CLASS_NUMBER
+        );
         body.addView(barcodeField);
 
-        Button camera = ui.button("Use camera scanner", NourishColors.BLUE, NourishColors.BLUE_SOFT);
-        camera.setOnClickListener(view -> requestCameraAccess());
-        LinearLayout.LayoutParams cameraParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ui.dp(46)
-        );
-        cameraParams.topMargin = ui.dp(12);
-        body.addView(camera, cameraParams);
+        Button lookup = ui.button("Look up barcode", NourishColors.ON_ACCENT, NourishColors.BLUE);
+        lookup.setSingleLine(true);
+        body.addView(lookup, matchParams(48, NourishSpacing.SM));
 
-        Button premiumPlan = ui.button("Premium plan", NourishColors.BLUE, NourishColors.BLUE_SOFT);
+        Button premiumPlan = ui.button("View premium access", NourishColors.BLUE, Color.TRANSPARENT);
+        premiumPlan.setSingleLine(true);
         premiumPlan.setOnClickListener(view -> premiumPlanAction.run());
-        LinearLayout.LayoutParams premiumParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ui.dp(44)
-        );
-        premiumParams.topMargin = ui.dp(8);
-        body.addView(premiumPlan, premiumParams);
-
-        body.addView(ui.fieldLabel("Manual lookup"));
-
-        Button lookup = ui.button("Lookup barcode", NourishColors.GOLD, NourishColors.GOLD_SOFT);
-        LinearLayout.LayoutParams lookupParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ui.dp(46)
-        );
-        lookupParams.topMargin = ui.dp(12);
-        body.addView(lookup, lookupParams);
+        body.addView(premiumPlan, matchParams(44, NourishSpacing.XS));
 
         ScrollView scrollView = new ScrollView(activity);
+        scrollView.setFillViewport(true);
         scrollView.addView(body);
 
         AlertDialog dialog = new AlertDialog.Builder(activity)
-                .setTitle("Barcode lookup")
                 .setView(scrollView)
                 .setNegativeButton("Close", null)
                 .create();
 
-        lookup.setOnClickListener(view -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
+        lookup.setOnClickListener(view -> startBarcodeLookup(
+                dialog,
+                body,
+                barcodeField,
+                lookup,
+                status
+        ));
         dialog.setOnShowListener(dialogInterface -> {
+            styleDialogActions(dialog);
             if (autoLookup) {
                 lookup.post(() -> startBarcodeLookup(dialog, body, barcodeField, lookup, status));
             } else {
@@ -143,6 +163,10 @@ public class BarcodeLookupFlow {
             }
         });
         dialog.show();
+        dialog.getWindow().setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
     }
 
     private void requestCameraAccess() {
@@ -156,19 +180,22 @@ public class BarcodeLookupFlow {
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            activity.requestPermissions(new String[]{Manifest.permission.CAMERA}, cameraPermissionRequestCode);
-        }
+        activity.requestPermissions(
+                new String[]{Manifest.permission.CAMERA},
+                cameraPermissionRequestCode
+        );
     }
 
     private boolean hasCameraPermission() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                activity.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+        return activity.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void launchScanner() {
         try {
-            activity.startActivityForResult(new Intent(activity, BarcodeScannerActivity.class), scannerRequestCode);
+            activity.startActivityForResult(
+                    new Intent(activity, BarcodeScannerActivity.class),
+                    scannerRequestCode
+            );
         } catch (Exception exception) {
             Toast.makeText(activity, "Camera scanner could not open.", Toast.LENGTH_SHORT).show();
         }
@@ -196,6 +223,7 @@ public class BarcodeLookupFlow {
         barcodeField.setText(code);
         lookup.setEnabled(false);
         status.setText("Looking up barcode...");
+        status.setTextColor(NourishColors.BLUE);
 
         new Thread(() -> {
             try {
@@ -238,7 +266,7 @@ public class BarcodeLookupFlow {
 
     private int barcodeStatusColor() {
         if (premiumManager.isPremiumActive()) {
-            return NourishColors.GREEN;
+            return NourishColors.GREEN_DARK;
         }
 
         int remaining = premiumManager.barcodeLookupsRemaining();
@@ -259,33 +287,125 @@ public class BarcodeLookupFlow {
     private View barcodeAccessPanel(TextView status) {
         LinearLayout panel = new LinearLayout(activity);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(ui.dp(14), ui.dp(12), ui.dp(14), ui.dp(12));
-        panel.setBackground(ui.rounded(NourishColors.CARD, NourishColors.BORDER, ui.dp(20)));
+        panel.setPadding(
+                ui.dp(NourishSpacing.SM),
+                ui.dp(NourishSpacing.SM),
+                ui.dp(NourishSpacing.SM),
+                ui.dp(NourishSpacing.SM)
+        );
+        panel.setBackground(ui.rounded(
+                NourishColors.CARD_SUBTLE,
+                NourishColors.BORDER,
+                ui.dp(NourishShapes.RADIUS_CONTROL)
+        ));
 
-        TextView label = ui.text("Barcode access", 12, NourishColors.MUTED, Typeface.BOLD);
-        panel.addView(label);
+        panel.addView(ui.text(
+                "Barcode access",
+                NourishTypography.CAPTION,
+                NourishColors.MUTED,
+                Typeface.BOLD
+        ));
+        panel.addView(status, wrapParams(NourishSpacing.XXS));
+        panel.addView(
+                ui.text(
+                        "Manual food entry remains available when no lookups are left.",
+                        NourishTypography.CAPTION,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                wrapParams(NourishSpacing.XXS)
+        );
+        return panel;
+    }
 
-        status.setPadding(0, ui.dp(2), 0, ui.dp(4));
-        panel.addView(status);
+    private View dialogHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(0, 0, 0, ui.dp(NourishSpacing.XS));
+        header.addView(ui.displayText(title, NourishTypography.TITLE, NourishColors.INK));
+        header.addView(
+                ui.text(
+                        subtitle,
+                        NourishTypography.LABEL,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                wrapParams(NourishSpacing.XXS)
+        );
+        return header;
+    }
 
-        TextView note = ui.text("Scan or type a UPC/EAN code to inspect nutrition facts before saving. Manual food entry stays available.", 12, NourishColors.MUTED, Typeface.BOLD);
-        panel.addView(note);
+    private View sectionHeader(String title, String subtitle) {
+        LinearLayout section = new LinearLayout(activity);
+        section.setOrientation(LinearLayout.VERTICAL);
+        section.setPadding(0, ui.dp(NourishSpacing.LG), 0, 0);
 
+        View divider = new View(activity);
+        divider.setBackgroundColor(NourishColors.DIVIDER);
+        section.addView(divider, matchParams(1, 0));
+        section.addView(
+                ui.displayText(title, NourishTypography.BODY_LARGE, NourishColors.INK),
+                wrapParams(NourishSpacing.MD)
+        );
+        section.addView(
+                ui.text(
+                        subtitle,
+                        NourishTypography.CAPTION,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                wrapParams(NourishSpacing.XXS)
+        );
+        return section;
+    }
+
+    private LinearLayout dialogBody() {
+        LinearLayout body = new LinearLayout(activity);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(
+                ui.dp(NourishSpacing.LG),
+                ui.dp(NourishSpacing.MD),
+                ui.dp(NourishSpacing.LG),
+                ui.dp(NourishSpacing.SM)
+        );
+        return body;
+    }
+
+    private void styleDialogActions(AlertDialog dialog) {
+        Button close = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        close.setTextColor(NourishColors.INK_SECONDARY);
+        close.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.NORMAL));
+    }
+
+    private LinearLayout.LayoutParams matchParams(int height, int topMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ui.dp(height)
+        );
+        params.topMargin = ui.dp(topMargin);
+        return params;
+    }
+
+    private LinearLayout.LayoutParams wrapParams(int topMargin) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        params.bottomMargin = ui.dp(10);
-        panel.setLayoutParams(params);
-        return panel;
+        params.topMargin = ui.dp(topMargin);
+        return params;
     }
 
     private void showBarcodeLimitDialog() {
-        new AlertDialog.Builder(activity)
+        AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Barcode limit reached")
                 .setMessage("Free barcode lookups are used up for this install. You can still add foods manually, or unlock premium for unlimited barcode scans once purchases are connected.")
                 .setNegativeButton("Close", null)
-                .setPositiveButton("Premium plan", (dialog, which) -> premiumPlanAction.run())
-                .show();
+                .setPositiveButton("Premium plan", (ignored, which) -> premiumPlanAction.run())
+                .create();
+        dialog.setOnShowListener(ignored -> {
+            styleDialogActions(dialog);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(NourishColors.BLUE);
+        });
+        dialog.show();
     }
 }

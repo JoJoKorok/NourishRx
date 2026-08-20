@@ -3,25 +3,33 @@ package com.jojokorok.nourishrx.profiles;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.net.Uri;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.ui.NourishColors;
+import com.jojokorok.nourishrx.ui.NourishShapes;
+import com.jojokorok.nourishrx.ui.NourishSpacing;
+import com.jojokorok.nourishrx.ui.NourishTypography;
 import com.jojokorok.nourishrx.ui.NourishUi;
 
 import java.io.IOException;
@@ -43,6 +51,10 @@ public class ProfilePhotoFlow {
     private final NourishUi ui;
     private final int requestProfilePhoto;
     private final Callbacks callbacks;
+    private final Paint bitmapPaint = new Paint(
+            Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG
+    );
+    private final RectF bitmapDestination = new RectF();
 
     public ProfilePhotoFlow(
             Activity activity,
@@ -104,27 +116,52 @@ public class ProfilePhotoFlow {
             return;
         }
 
-        LinearLayout form = new LinearLayout(activity);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(ui.dp(18), ui.dp(8), ui.dp(18), 0);
+        LinearLayout form = dialogBody();
+        form.addView(dialogHeader(
+                "Frame profile photo",
+                "Drag to reposition, pinch to zoom, or use the controls below for precise adjustments."
+        ));
 
         ProfilePhotoEditorView editor = new ProfilePhotoEditorView(bitmap);
         editor.setFrame(zoom, offsetX, offsetY, aspectRatio);
+        editor.setContentDescription("Profile photo framing preview for " + profile.name);
         LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ui.dp(280)
+                ui.dp(252)
         );
+        editorParams.topMargin = ui.dp(NourishSpacing.SM);
         form.addView(editor, editorParams);
 
+        LinearLayout zoomHeader = new LinearLayout(activity);
+        zoomHeader.setOrientation(LinearLayout.HORIZONTAL);
+        zoomHeader.setGravity(Gravity.CENTER_VERTICAL);
         TextView zoomLabel = ui.fieldLabel("Zoom");
-        form.addView(zoomLabel);
+        zoomHeader.addView(zoomLabel, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+        TextView zoomValue = ui.text(
+                zoomPercent(editor.getZoom()),
+                NourishTypography.CAPTION,
+                NourishColors.BLUE,
+                Typeface.BOLD
+        );
+        zoomValue.setGravity(Gravity.END);
+        zoomHeader.addView(zoomValue);
+        form.addView(zoomHeader, matchWrapParams(NourishSpacing.MD));
+
         SeekBar zoomSlider = new SeekBar(activity);
         zoomSlider.setMax(200);
         zoomSlider.setProgress(Math.round((editor.getZoom() - 1.0f) * 100.0f));
+        zoomSlider.setProgressTintList(ColorStateList.valueOf(NourishColors.GREEN));
+        zoomSlider.setThumbTintList(ColorStateList.valueOf(NourishColors.GREEN_DARK));
+        zoomSlider.setContentDescription("Photo zoom");
         zoomSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 editor.setZoom(1.0f + progress / 100.0f);
+                zoomValue.setText(zoomPercent(editor.getZoom()));
             }
 
             @Override
@@ -140,57 +177,82 @@ public class ProfilePhotoFlow {
             if (zoomSlider.getProgress() != progress) {
                 zoomSlider.setProgress(progress);
             }
+            zoomValue.setText(zoomPercent(editor.getZoom()));
         });
         form.addView(zoomSlider);
 
-        form.addView(ui.fieldLabel("Frame"));
+        form.addView(sectionHeader(
+                "Crop shape",
+                "Choose how the photo is framed beside the profile name."
+        ));
         LinearLayout aspectActions = actionRow();
-        Button square = button("Square", NourishColors.GREEN, NourishColors.GREEN_SOFT);
-        square.setOnClickListener(view -> editor.setAspectRatio(1.0f));
-        aspectActions.addView(square, weightedActionParams());
-
-        Button portrait = button("Portrait", NourishColors.BLUE, NourishColors.BLUE_SOFT);
-        portrait.setOnClickListener(view -> editor.setAspectRatio(0.8f));
-        aspectActions.addView(portrait, weightedActionParams());
-
-        Button wide = button("Wide", NourishColors.GOLD, NourishColors.GOLD_SOFT);
-        wide.setOnClickListener(view -> editor.setAspectRatio(1.6f));
-        aspectActions.addView(wide, weightedActionParams());
+        Button square = button("Square", NourishColors.INK_SECONDARY, Color.TRANSPARENT);
+        Button portrait = button("Portrait", NourishColors.INK_SECONDARY, Color.TRANSPARENT);
+        Button wide = button("Wide", NourishColors.INK_SECONDARY, Color.TRANSPARENT);
+        Runnable refreshAspectButtons = () -> {
+            float ratio = editor.getAspectRatio();
+            styleChoiceButton(square, Math.abs(ratio - 1.0f) < 0.1f);
+            styleChoiceButton(portrait, Math.abs(ratio - 0.8f) < 0.1f);
+            styleChoiceButton(wide, Math.abs(ratio - 1.6f) < 0.1f);
+        };
+        square.setOnClickListener(view -> {
+            editor.setAspectRatio(1.0f);
+            refreshAspectButtons.run();
+        });
+        portrait.setOnClickListener(view -> {
+            editor.setAspectRatio(0.8f);
+            refreshAspectButtons.run();
+        });
+        wide.setOnClickListener(view -> {
+            editor.setAspectRatio(1.6f);
+            refreshAspectButtons.run();
+        });
+        aspectActions.addView(square, weightedActionParams(false));
+        aspectActions.addView(portrait, weightedActionParams(false));
+        aspectActions.addView(wide, weightedActionParams(true));
         form.addView(aspectActions);
+        refreshAspectButtons.run();
 
-        form.addView(ui.fieldLabel("Position"));
+        form.addView(sectionHeader(
+                "Position",
+                "Nudge the image or return it to the center."
+        ));
         LinearLayout horizontalActions = actionRow();
-        Button left = button("Left", NourishColors.BLUE, NourishColors.BLUE_SOFT);
+        Button left = button("Left", NourishColors.BLUE, Color.TRANSPARENT);
         left.setOnClickListener(view -> editor.nudge(-0.12f, 0.0f));
-        horizontalActions.addView(left, weightedActionParams());
+        horizontalActions.addView(left, weightedActionParams(false));
 
-        Button center = button("Center", NourishColors.GREEN, NourishColors.GREEN_SOFT);
+        Button center = button("Center", NourishColors.GREEN_DARK, NourishColors.GREEN_SOFT);
         center.setOnClickListener(view -> editor.center());
-        horizontalActions.addView(center, weightedActionParams());
+        horizontalActions.addView(center, weightedActionParams(false));
 
-        Button right = button("Right", NourishColors.BLUE, NourishColors.BLUE_SOFT);
+        Button right = button("Right", NourishColors.BLUE, Color.TRANSPARENT);
         right.setOnClickListener(view -> editor.nudge(0.12f, 0.0f));
-        horizontalActions.addView(right, weightedActionParams());
+        horizontalActions.addView(right, weightedActionParams(true));
         form.addView(horizontalActions);
 
         LinearLayout verticalActions = actionRow();
-        Button up = button("Up", NourishColors.BLUE, NourishColors.BLUE_SOFT);
+        Button up = button("Up", NourishColors.BLUE, Color.TRANSPARENT);
         up.setOnClickListener(view -> editor.nudge(0.0f, -0.12f));
-        verticalActions.addView(up, weightedActionParams());
+        verticalActions.addView(up, weightedActionParams(false));
 
-        Button down = button("Down", NourishColors.BLUE, NourishColors.BLUE_SOFT);
+        Button down = button("Down", NourishColors.BLUE, Color.TRANSPARENT);
         down.setOnClickListener(view -> editor.nudge(0.0f, 0.12f));
-        verticalActions.addView(down, weightedActionParams());
+        verticalActions.addView(down, weightedActionParams(true));
         form.addView(verticalActions);
 
+        ScrollView scrollView = new ScrollView(activity);
+        scrollView.setFillViewport(true);
+        scrollView.addView(form);
+
         AlertDialog dialog = new AlertDialog.Builder(activity)
-                .setTitle("Frame " + profile.name)
-                .setView(form)
+                .setView(scrollView)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", null)
                 .create();
 
         dialog.setOnShowListener(dialogInterface -> {
+            styleDialogActions(dialog);
             Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             save.setOnClickListener(view -> {
                 store.updateProfileAvatar(
@@ -208,6 +270,10 @@ public class ProfilePhotoFlow {
         });
 
         dialog.show();
+        dialog.getWindow().setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
     }
 
     public Bitmap loadBitmap(String uriString) {
@@ -283,7 +349,6 @@ public class ProfilePhotoFlow {
             return;
         }
 
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
         float safeZoom = clamp(zoom, 1.0f, 3.0f, 1.0f);
         float scale = Math.max(frame.width() / source.getWidth(), frame.height() / source.getHeight()) * safeZoom;
         float destinationWidth = source.getWidth() * scale;
@@ -292,9 +357,9 @@ public class ProfilePhotoFlow {
         float panY = Math.max(0.0f, (destinationHeight - frame.height()) / 2.0f);
         float left = frame.centerX() - destinationWidth / 2.0f + clamp(offsetX, -1.0f, 1.0f, 0.0f) * panX;
         float top = frame.centerY() - destinationHeight / 2.0f + clamp(offsetY, -1.0f, 1.0f, 0.0f) * panY;
-        RectF destination = new RectF(left, top, left + destinationWidth, top + destinationHeight);
+        bitmapDestination.set(left, top, left + destinationWidth, top + destinationHeight);
         canvas.drawColor(NourishColors.CARD);
-        canvas.drawBitmap(source, null, destination, paint);
+        canvas.drawBitmap(source, null, bitmapDestination, bitmapPaint);
     }
 
     private float clamp(float value, float min, float max, float fallback) {
@@ -307,14 +372,105 @@ public class ProfilePhotoFlow {
     private LinearLayout actionRow() {
         LinearLayout actions = new LinearLayout(activity);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setPadding(0, ui.dp(12), 0, 0);
+        actions.setPadding(0, ui.dp(NourishSpacing.XS), 0, 0);
         return actions;
     }
 
-    private LinearLayout.LayoutParams weightedActionParams() {
+    private LinearLayout.LayoutParams weightedActionParams(boolean last) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ui.dp(44), 1);
-        params.rightMargin = ui.dp(8);
+        if (!last) {
+            params.rightMargin = ui.dp(NourishSpacing.XS);
+        }
         return params;
+    }
+
+    private LinearLayout dialogBody() {
+        LinearLayout body = new LinearLayout(activity);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(
+                ui.dp(NourishSpacing.LG),
+                ui.dp(NourishSpacing.MD),
+                ui.dp(NourishSpacing.LG),
+                ui.dp(NourishSpacing.SM)
+        );
+        return body;
+    }
+
+    private View dialogHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(0, 0, 0, ui.dp(NourishSpacing.XS));
+        header.addView(ui.displayText(title, NourishTypography.TITLE, NourishColors.INK));
+        header.addView(
+                ui.text(
+                        subtitle,
+                        NourishTypography.LABEL,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                matchWrapParams(NourishSpacing.XXS)
+        );
+        return header;
+    }
+
+    private View sectionHeader(String title, String subtitle) {
+        LinearLayout section = new LinearLayout(activity);
+        section.setOrientation(LinearLayout.VERTICAL);
+        section.setPadding(0, ui.dp(NourishSpacing.LG), 0, 0);
+
+        View divider = new View(activity);
+        divider.setBackgroundColor(NourishColors.DIVIDER);
+        section.addView(divider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ui.dp(1)
+        ));
+        section.addView(
+                ui.displayText(title, NourishTypography.BODY_LARGE, NourishColors.INK),
+                matchWrapParams(NourishSpacing.MD)
+        );
+        section.addView(
+                ui.text(
+                        subtitle,
+                        NourishTypography.CAPTION,
+                        NourishColors.MUTED,
+                        Typeface.NORMAL
+                ),
+                matchWrapParams(NourishSpacing.XXS)
+        );
+        return section;
+    }
+
+    private void styleChoiceButton(Button button, boolean selected) {
+        button.setSingleLine(true);
+        button.setTextColor(selected ? NourishColors.ON_ACCENT : NourishColors.INK_SECONDARY);
+        button.setBackground(ui.rounded(
+                selected ? NourishColors.GREEN : NourishColors.CARD,
+                selected ? Color.TRANSPARENT : NourishColors.BORDER,
+                ui.dp(NourishShapes.RADIUS_CONTROL)
+        ));
+    }
+
+    private void styleDialogActions(AlertDialog dialog) {
+        Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        save.setTextColor(NourishColors.GREEN);
+        save.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.BOLD));
+
+        Button cancel = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        cancel.setTextColor(NourishColors.INK_SECONDARY);
+        cancel.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.NORMAL));
+    }
+
+    private LinearLayout.LayoutParams matchWrapParams(int topMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.topMargin = ui.dp(topMargin);
+        return params;
+    }
+
+    private String zoomPercent(float zoom) {
+        return Math.round(zoom * 100.0f) + "%";
     }
 
     private Button button(String label, int textColor, int backgroundColor) {
@@ -332,11 +488,21 @@ public class ProfilePhotoFlow {
         private float pinchStartDistance;
         private float pinchStartZoom;
         private Runnable onFrameChanged;
+        private final RectF frame = new RectF();
+        private final Path clipPath = new Path();
+        private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         ProfilePhotoEditorView(Bitmap bitmap) {
             super(activity);
             this.bitmap = bitmap;
-            setBackground(ui.rounded(NourishColors.CARD, NourishColors.BORDER, ui.dp(22)));
+            setBackground(ui.rounded(
+                    NourishColors.SURFACE_SUBTLE,
+                    NourishColors.BORDER,
+                    ui.dp(NourishShapes.RADIUS_CARD)
+            ));
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(ui.dp(2));
+            borderPaint.setColor(NourishColors.GREEN);
         }
 
         void setOnFrameChangedListener(Runnable listener) {
@@ -400,18 +566,13 @@ public class ProfilePhotoFlow {
             RectF frame = editorFrame();
             float radius = Math.min(frame.width(), frame.height()) / 2.0f;
 
-            Path clip = new Path();
-            clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
+            clipPath.reset();
+            clipPath.addRoundRect(frame, radius, radius, Path.Direction.CW);
             canvas.save();
-            canvas.clipPath(clip);
+            canvas.clipPath(clipPath);
             drawCroppedBitmap(canvas, bitmap, frame, zoom, offsetX, offsetY);
             canvas.restore();
-
-            Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
-            border.setStyle(Paint.Style.STROKE);
-            border.setStrokeWidth(ui.dp(2));
-            border.setColor(NourishColors.GREEN);
-            canvas.drawRoundRect(frame, radius, radius, border);
+            canvas.drawRoundRect(frame, radius, radius, borderPaint);
         }
 
         @Override
@@ -442,11 +603,21 @@ public class ProfilePhotoFlow {
                 }
                 return true;
             }
-            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
-                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                performClick();
                 getParent().requestDisallowInterceptTouchEvent(false);
                 return true;
             }
+            if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
             return true;
         }
 
@@ -462,7 +633,8 @@ public class ProfilePhotoFlow {
             }
             float left = (getWidth() - frameWidth) / 2.0f;
             float top = (getHeight() - frameHeight) / 2.0f;
-            return new RectF(left, top, left + frameWidth, top + frameHeight);
+            frame.set(left, top, left + frameWidth, top + frameHeight);
+            return frame;
         }
 
         private void panByPixels(float deltaX, float deltaY) {

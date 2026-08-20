@@ -84,6 +84,14 @@ Command-line debug build:
 
 On macOS or Linux, use `./gradlew :app:assembleDebug`.
 
+When Android Studio may be open, use the isolated Windows build command so command-line verification does not share Android Studio's generated files:
+
+```powershell
+.\tools\build-android.bat :app:assembleDebug
+```
+
+Isolated build outputs are written under `%LOCALAPPDATA%\NourishRx\cli-build` and use a non-persistent Gradle process.
+
 ## Install on Android
 
 Build a debug APK, then install it with Android Studio or `adb`:

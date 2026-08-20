@@ -41,6 +41,10 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
+import com.jojokorok.nourishrx.ui.NourishColors;
+import com.jojokorok.nourishrx.ui.NourishShapes;
+import com.jojokorok.nourishrx.ui.NourishSpacing;
+import com.jojokorok.nourishrx.ui.NourishTypography;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,11 +52,10 @@ import java.util.List;
 public class BarcodeScannerActivity extends Activity {
     public static final String EXTRA_BARCODE = "barcode";
 
-    private static final int COLOR_BACKGROUND = Color.rgb(22, 28, 34);
-    private static final int COLOR_PANEL = Color.rgb(244, 248, 244);
-    private static final int COLOR_INK = Color.rgb(31, 38, 46);
-    private static final int COLOR_MUTED = Color.rgb(92, 103, 110);
-    private static final int COLOR_GREEN = Color.rgb(33, 137, 108);
+    private static final int COLOR_BACKGROUND = Color.rgb(18, 28, 24);
+    private static final int COLOR_PANEL = NourishColors.SURFACE;
+    private static final int COLOR_INK = NourishColors.INK;
+    private static final int COLOR_MUTED = NourishColors.MUTED;
 
     private TextureView previewView;
     private TextView statusView;
@@ -135,10 +138,10 @@ public class BarcodeScannerActivity extends Activity {
         TextView frame = new TextView(this);
         GradientDrawable frameDrawable = new GradientDrawable();
         frameDrawable.setColor(Color.TRANSPARENT);
-        frameDrawable.setStroke(dp(3), Color.argb(225, 255, 255, 255));
-        frameDrawable.setCornerRadius(dp(22));
+        frameDrawable.setStroke(dp(2), Color.argb(235, 255, 255, 255));
+        frameDrawable.setCornerRadius(dp(NourishShapes.RADIUS_CONTROL));
         frame.setBackground(frameDrawable);
-        FrameLayout.LayoutParams frameParams = new FrameLayout.LayoutParams(dp(250), dp(160));
+        FrameLayout.LayoutParams frameParams = new FrameLayout.LayoutParams(dp(264), dp(168));
         frameParams.gravity = Gravity.CENTER;
         previewPanel.addView(frame, frameParams);
 
@@ -151,30 +154,47 @@ public class BarcodeScannerActivity extends Activity {
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
-        controls.setPadding(dp(18), dp(14), dp(18), dp(18));
+        controls.setPadding(
+                dp(NourishSpacing.LG),
+                dp(NourishSpacing.MD),
+                dp(NourishSpacing.LG),
+                dp(NourishSpacing.LG)
+        );
         GradientDrawable controlsBackground = new GradientDrawable();
         controlsBackground.setColor(COLOR_PANEL);
         controlsBackground.setCornerRadii(new float[]{
-                dp(26), dp(26), dp(26), dp(26),
+                dp(18), dp(18), dp(18), dp(18),
                 0, 0, 0, 0
         });
         controls.setBackground(controlsBackground);
 
-        TextView title = text("Scan barcode", 22, COLOR_INK, Typeface.BOLD);
+        TextView title = text(
+                "Scan barcode",
+                NourishTypography.TITLE,
+                COLOR_INK,
+                Typeface.BOLD
+        );
+        title.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.BOLD));
         controls.addView(title);
 
-        statusView = text("Center a UPC or EAN barcode inside the frame.", 14, COLOR_MUTED, Typeface.BOLD);
-        statusView.setPadding(0, dp(6), 0, dp(14));
+        statusView = text(
+                "Center a UPC or EAN barcode inside the guide.",
+                NourishTypography.LABEL,
+                COLOR_MUTED,
+                Typeface.NORMAL
+        );
+        statusView.setPadding(0, dp(NourishSpacing.XXS), 0, dp(NourishSpacing.MD));
         controls.addView(statusView);
 
         Button cancel = new Button(this);
-        cancel.setText("Cancel");
-        cancel.setTextColor(Color.WHITE);
-        cancel.setTextSize(14);
-        cancel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        cancel.setText("Close scanner");
+        cancel.setTextColor(NourishColors.INK_SECONDARY);
+        cancel.setTextSize(NourishTypography.LABEL);
+        cancel.setTypeface(Typeface.create(NourishTypography.FAMILY_MEDIUM, Typeface.NORMAL));
         GradientDrawable cancelBackground = new GradientDrawable();
-        cancelBackground.setColor(COLOR_GREEN);
-        cancelBackground.setCornerRadius(dp(18));
+        cancelBackground.setColor(NourishColors.CARD);
+        cancelBackground.setStroke(dp(1), NourishColors.BORDER);
+        cancelBackground.setCornerRadius(dp(NourishShapes.RADIUS_CONTROL));
         cancel.setBackground(cancelBackground);
         cancel.setAllCaps(false);
         cancel.setOnClickListener(view -> {
@@ -183,7 +203,7 @@ public class BarcodeScannerActivity extends Activity {
         });
         controls.addView(cancel, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(48)
+                dp(46)
         ));
 
         root.addView(controls, new LinearLayout.LayoutParams(

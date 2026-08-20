@@ -52,12 +52,10 @@ public class ReminderAlertsFlow {
 
     public void handleAlertsTap() {
         if (needsNotificationPermission()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                activity.requestPermissions(
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        notificationRequestCode
-                );
-            }
+            activity.requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    notificationRequestCode
+            );
             return;
         }
 

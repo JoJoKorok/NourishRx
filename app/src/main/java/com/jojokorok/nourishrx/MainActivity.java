@@ -21,7 +21,6 @@ import com.jojokorok.nourishrx.data.MealFoodLog;
 import com.jojokorok.nourishrx.data.Medication;
 import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.NutritionFood;
-import com.jojokorok.nourishrx.data.NutritionTotals;
 import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.SavedMeal;
 import com.jojokorok.nourishrx.data.WeightEntry;
@@ -32,6 +31,8 @@ import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
 import com.jojokorok.nourishrx.medications.MedicationScreens;
 import com.jojokorok.nourishrx.medications.MedicationTodayFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionFoodEditorFlow;
+import com.jojokorok.nourishrx.nutrition.NutritionFoodCards;
+import com.jojokorok.nourishrx.nutrition.NutritionMealCards;
 import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionTrackingFlow;
@@ -49,7 +50,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 42;
@@ -66,12 +66,6 @@ public class MainActivity extends Activity {
     private static final int COLOR_MUTED = NourishColors.MUTED;
     private static final int COLOR_GREEN = NourishColors.GREEN;
     private static final int COLOR_GREEN_SOFT = NourishColors.GREEN_SOFT;
-    private static final int COLOR_CORAL = NourishColors.CORAL;
-    private static final int COLOR_CORAL_SOFT = NourishColors.CORAL_SOFT;
-    private static final int COLOR_BLUE = NourishColors.BLUE;
-    private static final int COLOR_BLUE_SOFT = NourishColors.BLUE_SOFT;
-    private static final int COLOR_GOLD = NourishColors.GOLD;
-    private static final int COLOR_GOLD_SOFT = NourishColors.GOLD_SOFT;
 
     private final ZoneId zoneId = ZoneId.systemDefault();
 
@@ -86,6 +80,8 @@ public class MainActivity extends Activity {
     private MedicationScreens medicationScreens;
     private MedicationTodayFlow medicationTodayFlow;
     private NutritionFoodEditorFlow nutritionFoodEditorFlow;
+    private NutritionFoodCards nutritionFoodCards;
+    private NutritionMealCards nutritionMealCards;
     private NutritionMealFlow nutritionMealFlow;
     private NutritionScreens nutritionScreens;
     private NutritionTrackingFlow nutritionTrackingFlow;
@@ -107,7 +103,9 @@ public class MainActivity extends Activity {
         premiumManager = new PremiumManager(this);
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
+        nutritionFoodCards = new NutritionFoodCards(this, ui, nutritionFoodCardCallbacks());
         nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
+        nutritionMealCards = new NutritionMealCards(this, store, ui, zoneId, nutritionMealCardCallbacks());
         nutritionTrackingFlow = new NutritionTrackingFlow(this, store, ui, zoneId, nutritionTrackingCallbacks());
         openFoodFactsFlow = new OpenFoodFactsFlow(this, store, ui, openFoodFactsCallbacks());
         barcodeLookupFlow = new BarcodeLookupFlow(
@@ -330,21 +328,6 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public String selectedProfileName() {
-                return MainActivity.this.selectedProfileName();
-            }
-
-            @Override
-            public View sectionTitle(String title, String subtitle) {
-                return MainActivity.this.sectionTitle(title, subtitle);
-            }
-
-            @Override
-            public void emptyState(String message, String action, View.OnClickListener listener) {
-                MainActivity.this.emptyState(message, action, listener);
-            }
-
-            @Override
             public void showMedicationEditor() {
                 medicationEditorFlow.show(null);
             }
@@ -441,21 +424,6 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public String selectedProfileName() {
-                return MainActivity.this.selectedProfileName();
-            }
-
-            @Override
-            public View sectionTitle(String title, String subtitle) {
-                return MainActivity.this.sectionTitle(title, subtitle);
-            }
-
-            @Override
-            public void emptyState(String message, String action, View.OnClickListener listener) {
-                MainActivity.this.emptyState(message, action, listener);
-            }
-
-            @Override
             public void showMedicationDialog(Medication medication) {
                 medicationEditorFlow.show(medication);
             }
@@ -490,11 +458,6 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public String selectedProfileName() {
-                return MainActivity.this.selectedProfileName();
-            }
-
-            @Override
             public String plural(long count, String singular, String plural) {
                 return MainActivity.this.plural(count, singular, plural);
             }
@@ -515,11 +478,6 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
-                return MainActivity.this.totalsFromMealLogs(logs);
-            }
-
-            @Override
             public View sectionTitle(String title, String subtitle) {
                 return MainActivity.this.sectionTitle(title, subtitle);
             }
@@ -530,23 +488,8 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
-                return MainActivity.this.nutritionSummaryCard(calories, protein, carbs, fat);
-            }
-
-            @Override
-            public View dailyNutritionFactsCard(NutritionTotals totals) {
-                return MainActivity.this.dailyNutritionFactsCard(totals);
-            }
-
-            @Override
             public View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
-                return MainActivity.this.mealTotalsCard(mealName, logs);
-            }
-
-            @Override
-            public View defaultMealsCard(List<String> mealDefaults) {
-                return nutritionTrackingFlow.defaultMealsCard(mealDefaults);
+                return nutritionMealCards.mealSummaryCard(mealName, logs);
             }
 
             @Override
@@ -561,17 +504,17 @@ public class MainActivity extends Activity {
 
             @Override
             public View mealLogCard(MealFoodLog log) {
-                return nutritionMealFlow.mealLogCard(log);
+                return nutritionMealCards.mealLogCard(log);
             }
 
             @Override
             public View savedMealCard(SavedMeal savedMeal) {
-                return nutritionMealFlow.savedMealCard(savedMeal);
+                return nutritionMealCards.savedMealCard(savedMeal);
             }
 
             @Override
             public View foodCard(NutritionFood food) {
-                return MainActivity.this.foodCard(food);
+                return nutritionFoodCards.foodCard(food);
             }
 
             @Override
@@ -597,6 +540,79 @@ public class MainActivity extends Activity {
             @Override
             public void showBarcodeEntryPoint() {
                 MainActivity.this.barcodeLookupFlow.showEntryPoint();
+            }
+
+            @Override
+            public void showMealDefaultsDialog() {
+                nutritionTrackingFlow.showMealDefaultsDialog();
+            }
+
+            @Override
+            public void showWaterDialog() {
+                nutritionTrackingFlow.showWaterDialog();
+            }
+
+            @Override
+            public void showWeightDialog() {
+                nutritionTrackingFlow.showWeightDialog();
+            }
+
+            @Override
+            public void onNutritionChanged() {
+                renderShell();
+            }
+        };
+    }
+
+    private NutritionMealCards.Callbacks nutritionMealCardCallbacks() {
+        return new NutritionMealCards.Callbacks() {
+            @Override
+            public void logFood(String mealName) {
+                nutritionMealFlow.showLogFoodDialog(mealName);
+            }
+
+            @Override
+            public void editFoodLog(MealFoodLog log) {
+                nutritionMealFlow.showLogFoodDialog(log);
+            }
+
+            @Override
+            public void deleteFoodLog(MealFoodLog log) {
+                nutritionMealFlow.confirmDeleteMealLog(log);
+            }
+
+            @Override
+            public void logSavedMeal(SavedMeal savedMeal) {
+                nutritionMealFlow.showLogSavedMealDialog(savedMeal);
+            }
+
+            @Override
+            public void editSavedMeal(SavedMeal savedMeal) {
+                nutritionMealFlow.showSavedMealDialog(savedMeal);
+            }
+
+            @Override
+            public void deleteSavedMeal(SavedMeal savedMeal) {
+                nutritionMealFlow.confirmDeleteSavedMeal(savedMeal);
+            }
+        };
+    }
+
+    private NutritionFoodCards.Callbacks nutritionFoodCardCallbacks() {
+        return new NutritionFoodCards.Callbacks() {
+            @Override
+            public void logFood(NutritionFood food) {
+                nutritionMealFlow.showLogFoodDialog("", food.id);
+            }
+
+            @Override
+            public void editFood(NutritionFood food) {
+                nutritionFoodEditorFlow.show(food);
+            }
+
+            @Override
+            public void deleteFood(NutritionFood food) {
+                nutritionFoodEditorFlow.confirmDelete(food);
             }
         };
     }
@@ -676,161 +692,6 @@ public class MainActivity extends Activity {
         };
     }
 
-    private View nutritionSummaryCard(int calories, float protein, float carbs, float fat) {
-        LinearLayout card = card();
-        TextView title = text("Daily intake", 13, COLOR_MUTED, Typeface.BOLD);
-        card.addView(title);
-        card.addView(text(calories + " calories", 26, COLOR_INK, Typeface.BOLD));
-
-        LinearLayout macros = new LinearLayout(this);
-        macros.setOrientation(LinearLayout.HORIZONTAL);
-        macros.setPadding(0, dp(12), 0, 0);
-        macros.addView(summaryPill(formatGrams(protein) + " protein", COLOR_GREEN, COLOR_GREEN_SOFT));
-        macros.addView(summaryPill(formatGrams(carbs) + " carbs", COLOR_BLUE, COLOR_BLUE_SOFT));
-        macros.addView(summaryPill(formatGrams(fat) + " fat", COLOR_GOLD, COLOR_GOLD_SOFT));
-        card.addView(macros);
-
-        Button addMeal = button("+ Log food", COLOR_GREEN, COLOR_GREEN_SOFT);
-        addMeal.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(""));
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        addParams.topMargin = dp(12);
-        card.addView(addMeal, addParams);
-        return card;
-    }
-
-    private View dailyNutritionFactsCard(NutritionTotals totals) {
-        LinearLayout card = card();
-        card.addView(text("Full-day nutrition", 13, COLOR_MUTED, Typeface.BOLD));
-        card.addView(text(totals.calories + " calories total", 24, COLOR_INK, Typeface.BOLD));
-        card.addView(text("Combined from all foods logged today", 13, COLOR_MUTED, Typeface.NORMAL));
-
-        LinearLayout macros = new LinearLayout(this);
-        macros.setOrientation(LinearLayout.HORIZONTAL);
-        macros.setPadding(0, dp(12), 0, 0);
-        macros.addView(summaryPill(formatGrams(totals.proteinGrams) + " protein", COLOR_GREEN, COLOR_GREEN_SOFT));
-        macros.addView(summaryPill(formatGrams(totals.totalCarbsGrams) + " carbs", COLOR_BLUE, COLOR_BLUE_SOFT));
-        macros.addView(summaryPill(formatGrams(totals.totalFatGrams) + " fat", COLOR_GOLD, COLOR_GOLD_SOFT));
-        card.addView(macros);
-
-        card.addView(fieldLabel("Nutrition facts"));
-        card.addView(nutritionFactRow("Total fat", formatGrams(totals.totalFatGrams)));
-        card.addView(nutritionFactRow("Saturated fat", formatGrams(totals.saturatedFatGrams)));
-        card.addView(nutritionFactRow("Trans fat", formatGrams(totals.transFatGrams)));
-        card.addView(nutritionFactRow("Cholesterol", formatMg(totals.cholesterolMg)));
-        card.addView(nutritionFactRow("Sodium", formatMg(totals.sodiumMg)));
-        card.addView(nutritionFactRow("Total carbs", formatGrams(totals.totalCarbsGrams)));
-        card.addView(nutritionFactRow("Fiber", formatGrams(totals.fiberGrams)));
-        card.addView(nutritionFactRow("Total sugars", formatGrams(totals.totalSugarsGrams)));
-        card.addView(nutritionFactRow("Added sugars", formatGrams(totals.addedSugarsGrams)));
-        card.addView(nutritionFactRow("Protein", formatGrams(totals.proteinGrams)));
-
-        card.addView(fieldLabel("Vitamins and minerals"));
-        card.addView(nutritionFactRow("Vitamin D", formatMcg(totals.vitaminDMcg)));
-        card.addView(nutritionFactRow("Calcium", formatMg(totals.calciumMg)));
-        card.addView(nutritionFactRow("Iron", formatMg(totals.ironMg)));
-        card.addView(nutritionFactRow("Potassium", formatMg(totals.potassiumMg)));
-        return card;
-    }
-
-    private View nutritionFactRow(String label, String value) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(6), 0, dp(6));
-
-        TextView labelView = text(label, 14, COLOR_INK, Typeface.BOLD);
-        row.addView(labelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        TextView valueView = text(value, 14, COLOR_MUTED, Typeface.BOLD);
-        valueView.setGravity(Gravity.RIGHT);
-        row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        return row;
-    }
-
-    private View mealTotalsCard(String mealName, List<MealFoodLog> logs) {
-        NutritionTotals totals = totalsFromMealLogs(logs);
-
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(mealName, 20, COLOR_INK, Typeface.BOLD));
-        details.addView(text(plural(logs.size(), "food entry", "food entries") + " in this meal", 13, COLOR_MUTED, Typeface.BOLD));
-        details.addView(text(nutritionTotalsLine(totals), 13, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(totals.calories > 0 ? totals.calories + " cal" : "Meal"));
-        card.addView(top);
-
-        LinearLayout macros = new LinearLayout(this);
-        macros.setOrientation(LinearLayout.HORIZONTAL);
-        macros.setPadding(0, dp(12), 0, 0);
-        macros.addView(summaryPill(formatGrams(totals.proteinGrams) + " protein", COLOR_GREEN, COLOR_GREEN_SOFT));
-        macros.addView(summaryPill(formatGrams(totals.totalCarbsGrams) + " carbs", COLOR_BLUE, COLOR_BLUE_SOFT));
-        macros.addView(summaryPill(formatGrams(totals.totalFatGrams) + " fat", COLOR_GOLD, COLOR_GOLD_SOFT));
-        card.addView(macros);
-
-        Button logHere = button("+ Log here", COLOR_GREEN, COLOR_GREEN_SOFT);
-        logHere.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog(mealName));
-        LinearLayout.LayoutParams logParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
-        );
-        logParams.topMargin = dp(12);
-        card.addView(logHere, logParams);
-        return card;
-    }
-
-    private NutritionTotals totalsFromMealLogs(List<MealFoodLog> logs) {
-        NutritionTotals totals = new NutritionTotals();
-        for (MealFoodLog log : logs) {
-            totals.addFood(log.food, log.servings);
-        }
-        return totals;
-    }
-
-    private View foodCard(NutritionFood food) {
-        LinearLayout card = card();
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout details = new LinearLayout(this);
-        details.setOrientation(LinearLayout.VERTICAL);
-        details.addView(text(food.displayName(), 19, COLOR_INK, Typeface.BOLD));
-        details.addView(text(food.servingSummary(), 13, COLOR_MUTED, Typeface.BOLD));
-        details.addView(text(food.calories + " cal - " +
-                formatGrams(food.proteinGrams) + " protein - " +
-                formatGrams(food.totalCarbsGrams) + " carbs - " +
-                formatGrams(food.totalFatGrams) + " fat", 13, COLOR_MUTED, Typeface.NORMAL));
-        details.addView(text(formatMg(food.sodiumMg) + " sodium - " +
-                formatGrams(food.totalSugarsGrams) + " sugars - " +
-                formatMg(food.potassiumMg) + " potassium", 12, COLOR_MUTED, Typeface.NORMAL));
-        top.addView(details, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(statusBadge(food.calories > 0 ? food.calories + " cal" : "Food"));
-        card.addView(top);
-
-        LinearLayout actions = actionRow();
-        Button log = button("Log", COLOR_GREEN, COLOR_GREEN_SOFT);
-        log.setOnClickListener(view -> nutritionMealFlow.showLogFoodDialog("", food.id));
-        actions.addView(log, weightedActionParams());
-
-        Button edit = button("Edit", COLOR_BLUE, COLOR_BLUE_SOFT);
-        edit.setOnClickListener(view -> nutritionFoodEditorFlow.show(food));
-        actions.addView(edit, weightedActionParams());
-
-        Button delete = button("Delete", COLOR_CORAL, COLOR_CORAL_SOFT);
-        delete.setOnClickListener(view -> nutritionFoodEditorFlow.confirmDelete(food));
-        actions.addView(delete, weightedActionParams());
-        card.addView(actions);
-        return card;
-    }
-
     private long loadSelectedProfileId() {
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         long savedProfileId = preferences.getLong(PREF_SELECTED_PROFILE_ID, 0);
@@ -908,30 +769,6 @@ public class MainActivity extends Activity {
         return profile;
     }
 
-    private String selectedProfileName() {
-        Profile profile = selectedProfile();
-        return profile == null ? "Me" : profile.name;
-    }
-
-    private String formatGrams(float grams) {
-        return formatFloatInput(grams) + "g";
-    }
-
-    private String formatMg(float value) {
-        return formatFloatInput(value) + "mg";
-    }
-
-    private String formatMcg(float value) {
-        return formatFloatInput(value) + "mcg";
-    }
-
-    private String nutritionTotalsLine(NutritionTotals totals) {
-        return totals.calories + " cal - " +
-                formatGrams(totals.proteinGrams) + " protein - " +
-                formatGrams(totals.totalCarbsGrams) + " carbs - " +
-                formatGrams(totals.totalFatGrams) + " fat";
-    }
-
     private ArrayList<String> mealNamesForLogs(List<MealFoodLog> logs) {
         ArrayList<String> names = new ArrayList<>();
         for (MealFoodLog log : logs) {
@@ -959,13 +796,6 @@ public class MainActivity extends Activity {
         return matchingLogs;
     }
 
-    private String formatFloatInput(float value) {
-        if (Math.abs(value - Math.round(value)) < 0.05f) {
-            return String.valueOf(Math.round(value));
-        }
-        return String.format(Locale.getDefault(), "%.1f", value);
-    }
-
     private int distinctMealCount(List<MealFoodLog> logs) {
         ArrayList<String> names = new ArrayList<>();
         for (MealFoodLog log : logs) {
@@ -979,21 +809,10 @@ public class MainActivity extends Activity {
 
     private View sectionTitle(String title, String subtitle) {
         LinearLayout group = new LinearLayout(this);
-        group.setOrientation(LinearLayout.HORIZONTAL);
-        group.setGravity(Gravity.CENTER_VERTICAL);
+        group.setOrientation(LinearLayout.VERTICAL);
         group.setPadding(0, dp(8), 0, dp(8));
-
-        View marker = new View(this);
-        marker.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(3)));
-        LinearLayout.LayoutParams markerParams = new LinearLayout.LayoutParams(dp(5), dp(42));
-        markerParams.rightMargin = dp(10);
-        group.addView(marker, markerParams);
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        labels.addView(text(title, 21, COLOR_INK, Typeface.BOLD));
-        labels.addView(text(subtitle, 13, COLOR_MUTED, Typeface.BOLD));
-        group.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        group.addView(text(title, 20, COLOR_INK, Typeface.BOLD));
+        group.addView(text(subtitle, 13, COLOR_MUTED, Typeface.NORMAL));
         return group;
     }
 
@@ -1001,21 +820,14 @@ public class MainActivity extends Activity {
         LinearLayout state = new LinearLayout(this);
         state.setOrientation(LinearLayout.VERTICAL);
         state.setGravity(Gravity.CENTER_HORIZONTAL);
-        state.setPadding(dp(18), dp(28), dp(18), dp(28));
-        state.setBackground(roundedGradient(
-                new int[]{
-                        Color.rgb(255, 251, 239),
-                        Color.rgb(229, 244, 238)
-                },
-                dp(24)
-        ));
-        state.setElevation(dp(1));
+        state.setPadding(dp(20), dp(24), dp(20), dp(24));
+        state.setBackground(rounded(NourishColors.CARD, NourishColors.BORDER, dp(8)));
 
-        TextView mark = text("Rx", 24, Color.WHITE, Typeface.BOLD);
+        TextView mark = text("Rx", 16, NourishColors.GREEN_DARK, Typeface.BOLD);
         mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(COLOR_GREEN, Color.TRANSPARENT, dp(28)));
-        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(56), dp(56));
-        markParams.bottomMargin = dp(14);
+        mark.setBackground(rounded(COLOR_GREEN_SOFT, Color.TRANSPARENT, dp(8)));
+        LinearLayout.LayoutParams markParams = new LinearLayout.LayoutParams(dp(44), dp(36));
+        markParams.bottomMargin = dp(12);
         state.addView(mark, markParams);
 
         TextView messageView = text(message, 16, COLOR_MUTED, Typeface.BOLD);
@@ -1026,7 +838,7 @@ public class MainActivity extends Activity {
         button.setOnClickListener(listener);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(44)
+                dp(48)
         );
         params.topMargin = dp(16);
         state.addView(button, params);
@@ -1039,31 +851,8 @@ public class MainActivity extends Activity {
         content.addView(state, stateParams);
     }
 
-    private LinearLayout card() {
-        return ui.card();
-    }
-
-    private LinearLayout actionRow() {
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setPadding(0, dp(12), 0, 0);
-        return actions;
-    }
-
-    private TextView statusBadge(String label) {
-        return ui.statusBadge(label);
-    }
-
-    private TextView summaryPill(String label, int textColor, int background) {
-        return ui.summaryPill(label, textColor, background);
-    }
-
     private TextView text(String value, int sp, int color, int style) {
         return ui.text(value, sp, color, style);
-    }
-
-    private TextView fieldLabel(String value) {
-        return ui.fieldLabel(value);
     }
 
     private Button button(String label, int textColor, int backgroundColor) {
@@ -1072,16 +861,6 @@ public class MainActivity extends Activity {
 
     private GradientDrawable rounded(int color, int strokeColor, int radius) {
         return ui.rounded(color, strokeColor, radius);
-    }
-
-    private GradientDrawable roundedGradient(int[] colors, int radius) {
-        return ui.roundedGradient(colors, radius);
-    }
-
-    private LinearLayout.LayoutParams weightedActionParams() {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1);
-        params.rightMargin = dp(8);
-        return params;
     }
 
     private String plural(long count, String singular, String plural) {
