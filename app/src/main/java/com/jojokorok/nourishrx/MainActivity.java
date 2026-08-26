@@ -25,6 +25,7 @@ import com.jojokorok.nourishrx.data.Profile;
 import com.jojokorok.nourishrx.data.SavedMeal;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
+import com.jojokorok.nourishrx.backup.BackupExportFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
 import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
@@ -56,6 +57,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_PROFILE_PHOTO = 43;
     private static final int REQUEST_BARCODE_CAMERA = 44;
     private static final int REQUEST_BARCODE_SCAN = 45;
+    private static final int REQUEST_BACKUP_EXPORT = 46;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
     private static final String PREF_APP_MODE = "app_mode";
     private static final String MODE_MEDICATION = "medication";
@@ -75,6 +77,7 @@ public class MainActivity extends Activity {
     private AppShellFlow appShellFlow;
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
+    private BackupExportFlow backupExportFlow;
     private MedicationEditorFlow medicationEditorFlow;
     private MedicationManagementFlow medicationManagementFlow;
     private MedicationScreens medicationScreens;
@@ -100,6 +103,22 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         ui = new NourishUi(this);
         store = new MedicationStore(this);
+        backupExportFlow = new BackupExportFlow(
+                this,
+                store,
+                REQUEST_BACKUP_EXPORT,
+                new BackupExportFlow.Callbacks() {
+                    @Override
+                    public long currentProfileId() {
+                        return MainActivity.this.currentProfileId;
+                    }
+
+                    @Override
+                    public String currentAppMode() {
+                        return MainActivity.this.currentMode;
+                    }
+                }
+        );
         premiumManager = new PremiumManager(this);
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
@@ -171,6 +190,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (backupExportFlow.ownsRequestCode(requestCode)) {
+            backupExportFlow.handleActivityResult(resultCode, data);
+            return;
+        }
         if (requestCode == REQUEST_BARCODE_SCAN) {
             barcodeLookupFlow.handleScannerResult(resultCode, data);
             return;
@@ -179,6 +202,12 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_PROFILE_PHOTO) {
             profilePhotoFlow.handlePhotoPickerResult(resultCode, data);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        backupExportFlow.close();
+        super.onDestroy();
     }
 
     private void renderShell() {
