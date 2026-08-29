@@ -26,6 +26,7 @@ import com.jojokorok.nourishrx.data.SavedMeal;
 import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.backup.BackupExportFlow;
+import com.jojokorok.nourishrx.backup.BackupImportFlow;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
 import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
@@ -58,6 +59,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_BARCODE_CAMERA = 44;
     private static final int REQUEST_BARCODE_SCAN = 45;
     private static final int REQUEST_BACKUP_EXPORT = 46;
+    private static final int REQUEST_BACKUP_IMPORT = 47;
     private static final String PREF_SELECTED_PROFILE_ID = "selected_profile_id";
     private static final String PREF_APP_MODE = "app_mode";
     private static final String MODE_MEDICATION = "medication";
@@ -78,6 +80,7 @@ public class MainActivity extends Activity {
     private AboutPremiumFlow aboutPremiumFlow;
     private BarcodeLookupFlow barcodeLookupFlow;
     private BackupExportFlow backupExportFlow;
+    private BackupImportFlow backupImportFlow;
     private MedicationEditorFlow medicationEditorFlow;
     private MedicationManagementFlow medicationManagementFlow;
     private MedicationScreens medicationScreens;
@@ -119,6 +122,7 @@ public class MainActivity extends Activity {
                     }
                 }
         );
+        backupImportFlow = new BackupImportFlow(this, REQUEST_BACKUP_IMPORT);
         premiumManager = new PremiumManager(this);
         aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
@@ -194,6 +198,10 @@ public class MainActivity extends Activity {
             backupExportFlow.handleActivityResult(resultCode, data);
             return;
         }
+        if (backupImportFlow.ownsRequestCode(requestCode)) {
+            backupImportFlow.handleActivityResult(resultCode, data);
+            return;
+        }
         if (requestCode == REQUEST_BARCODE_SCAN) {
             barcodeLookupFlow.handleScannerResult(resultCode, data);
             return;
@@ -207,6 +215,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         backupExportFlow.close();
+        backupImportFlow.close();
         super.onDestroy();
     }
 
