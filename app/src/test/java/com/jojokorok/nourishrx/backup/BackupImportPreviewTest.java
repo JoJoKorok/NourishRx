@@ -37,6 +37,16 @@ public class BackupImportPreviewTest {
         assertThrows(BackupFormatException.class, () -> BackupImportPreview.from(backup));
     }
 
+    @Test
+    public void rejectsBackupWithoutProfiles() {
+        NourishRxBackup backup = validBackup();
+        backup.profiles.clear();
+        backup.medications.clear();
+        backup.settings.selectedProfileId = 0;
+
+        assertThrows(BackupFormatException.class, () -> BackupImportPreview.from(backup));
+    }
+
     private static NourishRxBackup validBackup() {
         NourishRxBackup backup = new NourishRxBackup();
         backup.metadata.exportedAtEpochMillis = 1_752_000_000_000L;

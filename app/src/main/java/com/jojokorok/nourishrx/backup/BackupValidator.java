@@ -38,6 +38,9 @@ public final class BackupValidator {
         }
 
         Set<Long> profileIds = ids(backup.profiles, item -> item.id, "profiles", errors);
+        if (backup.profiles != null && backup.profiles.isEmpty()) {
+            errors.add("profiles must contain at least one profile");
+        }
         Set<Long> medicationIds = ids(backup.medications, item -> item.id, "medications", errors);
         Set<Long> foodIds = ids(backup.foods, item -> item.id, "foods", errors);
         Set<Long> savedMealIds = ids(backup.savedMeals, item -> item.id, "savedMeals", errors);
@@ -49,9 +52,12 @@ public final class BackupValidator {
         ids(backup.mealDefaults, item -> item.id, "mealDefaults", errors);
         ids(backup.savedMealItems, item -> item.id, "savedMealItems", errors);
 
-        if (backup.settings != null && backup.settings.selectedProfileId > 0
-                && !profileIds.contains(backup.settings.selectedProfileId)) {
-            errors.add("settings.selectedProfileId does not reference a profile");
+        if (backup.settings != null) {
+            if (backup.settings.selectedProfileId <= 0) {
+                errors.add("settings.selectedProfileId must reference a profile");
+            } else if (!profileIds.contains(backup.settings.selectedProfileId)) {
+                errors.add("settings.selectedProfileId does not reference a profile");
+            }
         }
 
         validateProfiles(backup.profiles, errors);
