@@ -28,8 +28,14 @@ import com.jojokorok.nourishrx.ui.NourishUi
 class AboutPremiumFlow(
     private val activity: Activity,
     private val ui: NourishUi,
-    private val premiumManager: PremiumManager
+    private val premiumManager: PremiumManager,
+    private val backupCallbacks: BackupCallbacks
 ) {
+    interface BackupCallbacks {
+        fun exportBackup()
+        fun importBackup()
+    }
+
     fun renderAbout(content: LinearLayout) {
         content.addView(
             screenHeader(
@@ -39,6 +45,7 @@ class AboutPremiumFlow(
         )
         content.addView(brandPanel())
         content.addView(projectCard())
+        content.addView(backupTransferCard())
         content.addView(accessCard())
     }
 
@@ -220,6 +227,56 @@ class AboutPremiumFlow(
                 matchParams(height = 46, topMargin = NourishSpacing.XS)
             )
         }
+    }
+
+    private fun backupTransferCard(): LinearLayout = flatCard().apply {
+        val top = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                cardHeader(
+                    "Backup & transfer",
+                    "Save or restore local NourishRx data"
+                ),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(premiumFeatureBadge(), wrapWrapParams(startMargin = NourishSpacing.SM))
+        }
+        addView(top)
+        addView(
+            infoRow(
+                "Included",
+                "Profiles, medication schedules and dose history, foods and meal logs, saved meals, water, weight, and profile photos."
+            )
+        )
+        addView(
+            infoRow(
+                "Privacy",
+                "Exported JSON files are not encrypted. Keep backups in a private, trusted location."
+            )
+        )
+        addView(
+            ui.button("Export backup", NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
+                setSingleLine(true)
+                setOnClickListener {
+                    if (requirePremium(PremiumFeature.DATA_IMPORT_EXPORT)) {
+                        backupCallbacks.exportBackup()
+                    }
+                }
+            },
+            matchParams(height = 48, topMargin = NourishSpacing.MD)
+        )
+        addView(
+            ui.button("Import backup", NourishColors.BLUE, Color.TRANSPARENT).apply {
+                setSingleLine(true)
+                setOnClickListener {
+                    if (requirePremium(PremiumFeature.DATA_IMPORT_EXPORT)) {
+                        backupCallbacks.importBackup()
+                    }
+                }
+            },
+            matchParams(height = 48, topMargin = NourishSpacing.XS)
+        )
     }
 
     private fun premiumAccessSummary(): LinearLayout = LinearLayout(activity).apply {
@@ -407,6 +464,27 @@ class AboutPremiumFlow(
             )
         }
     }
+
+    private fun premiumFeatureBadge(): TextView =
+        ui.text(
+            "Premium",
+            NourishTypography.CAPTION,
+            NourishColors.GREEN_DARK,
+            Typeface.BOLD
+        ).apply {
+            gravity = Gravity.CENTER
+            setPadding(
+                ui.dp(NourishSpacing.XS),
+                ui.dp(NourishSpacing.XXS),
+                ui.dp(NourishSpacing.XS),
+                ui.dp(NourishSpacing.XXS)
+            )
+            background = ui.rounded(
+                NourishColors.GREEN_SOFT,
+                Color.TRANSPARENT,
+                ui.dp(NourishShapes.RADIUS_CONTROL)
+            )
+        }
 
     private fun messagePanel(message: String): TextView =
         ui.text(

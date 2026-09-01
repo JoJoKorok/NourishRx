@@ -25,6 +25,7 @@ public final class ReminderScheduler {
     public static final String EXTRA_MEDICATION_ID = "extra_medication_id";
     public static final String EXTRA_PROFILE_ID = "extra_profile_id";
     public static final String EXTRA_SCHEDULED_AT = "extra_scheduled_at";
+    public static final String EXTRA_SCHEDULE_GENERATION = "extra_schedule_generation";
     public static final String CHANNEL_ID = "medication_reminders";
     private static final String CHANNEL_ID_PREFIX = "medication_reminders_profile_";
 
@@ -76,6 +77,25 @@ public final class ReminderScheduler {
             return;
         }
         alarmManager.cancel(repeatReminderIntent(context, medicationId, 0, scheduledAt));
+    }
+
+    public static void invalidateAll(Context context) {
+        ReminderScheduleGeneration.advance(context);
+        MedicationStore store = new MedicationStore(context);
+        for (Medication medication : store.getAllMedications()) {
+            cancel(context, medication.id);
+        }
+        NotificationManager notificationManager =
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager != null) {
+            notificationManager.cancelAll();
+        }
+    }
+
+    public static boolean isCurrentGeneration(Context context, Intent intent) {
+        return intent != null
+                && intent.getLongExtra(EXTRA_SCHEDULE_GENERATION, 0)
+                == ReminderScheduleGeneration.current(context);
     }
 
     public static boolean canScheduleExactAlarms(Context context) {
@@ -160,6 +180,7 @@ public final class ReminderScheduler {
         intent.putExtra(EXTRA_MEDICATION_ID, medicationId);
         intent.putExtra(EXTRA_PROFILE_ID, profileId);
         intent.putExtra(EXTRA_SCHEDULED_AT, scheduledAt);
+        intent.putExtra(EXTRA_SCHEDULE_GENERATION, ReminderScheduleGeneration.current(context));
         return PendingIntent.getBroadcast(
                 context,
                 requestCode(medicationId, 0, 0),
@@ -175,6 +196,7 @@ public final class ReminderScheduler {
         intent.putExtra(EXTRA_MEDICATION_ID, medicationId);
         intent.putExtra(EXTRA_PROFILE_ID, profileId);
         intent.putExtra(EXTRA_SCHEDULED_AT, scheduledAt);
+        intent.putExtra(EXTRA_SCHEDULE_GENERATION, ReminderScheduleGeneration.current(context));
         return PendingIntent.getBroadcast(
                 context,
                 requestCode(medicationId, scheduledAt, ACTION_REPEAT_REMINDER.hashCode()),

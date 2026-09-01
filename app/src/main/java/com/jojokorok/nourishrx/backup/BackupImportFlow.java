@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.ui.NourishColors;
 
 import java.io.IOException;
@@ -16,19 +17,36 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class BackupImportFlow {
+    public interface Callbacks {
+        void prepareForImport();
+
+        void onImportCompleted(BackupImportResult result);
+
+        void onImportFailed();
+    }
+
     private final Activity activity;
     private final int requestCode;
+    private final Callbacks callbacks;
     private final BackupFileImporter importer;
+    private final BackupDatabaseImporter databaseImporter;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean importInProgress = new AtomicBoolean(false);
 
-    public BackupImportFlow(Activity activity, int requestCode) {
+    public BackupImportFlow(
+            Activity activity,
+            MedicationStore store,
+            int requestCode,
+            Callbacks callbacks
+    ) {
         this.activity = activity;
         this.requestCode = requestCode;
+        this.callbacks = callbacks;
         this.importer = new BackupFileImporter(
                 activity.getContentResolver(),
                 new BackupJsonCodec()
         );
+        this.databaseImporter = new BackupDatabaseImporter(activity, store);
     }
 
     public void startImport() {
@@ -63,7 +81,7 @@ public final class BackupImportFlow {
         try {
             NourishRxBackup backup = importer.read(data.getData());
             BackupImportPreview preview = BackupImportPreview.from(backup);
-            showOnUiThread(() -> showPreview(preview));
+            showOnUiThread(() -> showPreview(backup, preview));
         } catch (BackupFormatException exception) {
             showOnUiThread(() -> showInvalidBackup(exception.validationErrors()));
         } catch (IOException exception) {
@@ -73,14 +91,80 @@ public final class BackupImportFlow {
         }
     }
 
-    private void showPreview(BackupImportPreview preview) {
+    private void showPreview(NourishRxBackup backup, BackupImportPreview preview) {
         AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Backup ready to import")
                 .setMessage(preview.displayMessage(ZoneId.systemDefault()))
-                .setPositiveButton("Close", null)
+                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Merge", (ignored, which) -> confirmMerge(backup))
+                .setPositiveButton("Replace", (ignored, which) -> confirmReplace(backup))
+                .create();
+        dialog.setOnShowListener(ignored -> styleImportChoiceButtons(dialog));
+        dialog.show();
+    }
+
+    private void confirmMerge(NourishRxBackup backup) {
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setTitle("Merge backup data?")
+                .setMessage(
+                        "Current records will stay on this device. Backup profiles and all of their records "
+                                + "will be added as new data."
+                )
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Merge data", (ignored, which) -> applyBackup(backup, BackupImportMode.MERGE))
                 .create();
         dialog.setOnShowListener(ignored -> stylePositiveButton(dialog));
         dialog.show();
+    }
+
+    private void confirmReplace(NourishRxBackup backup) {
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setTitle("Replace all local data?")
+                .setMessage(
+                        "This removes the medication, nutrition, profile, water, and weight records currently "
+                                + "on this device, then restores the selected backup. This cannot be undone."
+                )
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Replace data", (ignored, which) -> applyBackup(backup, BackupImportMode.REPLACE))
+                .create();
+        dialog.setOnShowListener(ignored -> {
+            stylePositiveButton(dialog);
+            Button replace = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (replace != null) {
+                replace.setTextColor(NourishColors.CORAL);
+            }
+        });
+        dialog.show();
+    }
+
+    private void applyBackup(NourishRxBackup backup, BackupImportMode mode) {
+        if (!importInProgress.compareAndSet(false, true)) {
+            Toast.makeText(activity, "A backup operation is already running.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                callbacks.prepareForImport();
+                BackupImportResult result = databaseImporter.apply(backup, mode);
+                showOnUiThread(() -> {
+                    callbacks.onImportCompleted(result);
+                    Toast.makeText(
+                            activity,
+                            mode == BackupImportMode.MERGE
+                                    ? "Backup merged successfully."
+                                    : "Backup restored successfully.",
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+            } catch (BackupImportException | RuntimeException exception) {
+                showOnUiThread(() -> {
+                    callbacks.onImportFailed();
+                    showImportError(exception);
+                });
+            } finally {
+                importInProgress.set(false);
+            }
+        });
     }
 
     private void showInvalidBackup(List<String> errors) {
@@ -118,6 +202,20 @@ public final class BackupImportFlow {
         dialog.show();
     }
 
+    private void showImportError(Exception exception) {
+        String reason = exception.getMessage();
+        if (reason == null || reason.trim().isEmpty()) {
+            reason = "The backup could not be imported.";
+        }
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setTitle("Import did not finish")
+                .setMessage(reason + "\n\nYour previous data remains available.")
+                .setPositiveButton("Close", null)
+                .create();
+        dialog.setOnShowListener(ignored -> stylePositiveButton(dialog));
+        dialog.show();
+    }
+
     private void showOnUiThread(Runnable action) {
         activity.runOnUiThread(() -> {
             if (!activity.isFinishing() && !activity.isDestroyed()) {
@@ -130,6 +228,22 @@ public final class BackupImportFlow {
         Button button = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (button != null) {
             button.setTextColor(NourishColors.BLUE);
+        }
+    }
+
+    private static void styleImportChoiceButtons(AlertDialog dialog) {
+        stylePositiveButton(dialog);
+        Button replace = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (replace != null) {
+            replace.setTextColor(NourishColors.CORAL);
+        }
+        Button merge = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+        if (merge != null) {
+            merge.setTextColor(NourishColors.BLUE);
+        }
+        Button cancel = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        if (cancel != null) {
+            cancel.setTextColor(NourishColors.INK_SECONDARY);
         }
     }
 }

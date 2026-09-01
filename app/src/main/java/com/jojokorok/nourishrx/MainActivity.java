@@ -27,6 +27,8 @@ import com.jojokorok.nourishrx.data.WeightEntry;
 import com.jojokorok.nourishrx.about.AboutPremiumFlow;
 import com.jojokorok.nourishrx.backup.BackupExportFlow;
 import com.jojokorok.nourishrx.backup.BackupImportFlow;
+import com.jojokorok.nourishrx.backup.BackupImportMode;
+import com.jojokorok.nourishrx.backup.BackupImportResult;
 import com.jojokorok.nourishrx.barcode.BarcodeLookupFlow;
 import com.jojokorok.nourishrx.medications.MedicationEditorFlow;
 import com.jojokorok.nourishrx.medications.MedicationManagementFlow;
@@ -122,9 +124,44 @@ public class MainActivity extends Activity {
                     }
                 }
         );
-        backupImportFlow = new BackupImportFlow(this, REQUEST_BACKUP_IMPORT);
+        backupImportFlow = new BackupImportFlow(
+                this,
+                store,
+                REQUEST_BACKUP_IMPORT,
+                new BackupImportFlow.Callbacks() {
+                    @Override
+                    public void prepareForImport() {
+                        ReminderScheduler.invalidateAll(MainActivity.this);
+                    }
+
+                    @Override
+                    public void onImportCompleted(BackupImportResult result) {
+                        applyImportedBackupState(result);
+                    }
+
+                    @Override
+                    public void onImportFailed() {
+                        reminderAlertsFlow.refreshSchedules();
+                    }
+                }
+        );
         premiumManager = new PremiumManager(this);
-        aboutPremiumFlow = new AboutPremiumFlow(this, ui, premiumManager);
+        aboutPremiumFlow = new AboutPremiumFlow(
+                this,
+                ui,
+                premiumManager,
+                new AboutPremiumFlow.BackupCallbacks() {
+                    @Override
+                    public void exportBackup() {
+                        backupExportFlow.startExport();
+                    }
+
+                    @Override
+                    public void importBackup() {
+                        backupImportFlow.startImport();
+                    }
+                }
+        );
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
         nutritionFoodCards = new NutritionFoodCards(this, ui, nutritionFoodCardCallbacks());
         nutritionMealFlow = new NutritionMealFlow(this, store, ui, zoneId, nutritionMealCallbacks());
@@ -736,6 +773,25 @@ public class MainActivity extends Activity {
         long profileId = resolveProfileId(savedProfileId);
         preferences.edit().putLong(PREF_SELECTED_PROFILE_ID, profileId).apply();
         return profileId;
+    }
+
+    private void applyImportedBackupState(BackupImportResult result) {
+        if (result.mode == BackupImportMode.REPLACE) {
+            currentProfileId = result.restoredSelectedProfileId;
+            currentMode = MODE_NUTRITION.equals(result.restoredAppMode)
+                    ? MODE_NUTRITION
+                    : MODE_MEDICATION;
+            currentTab = defaultTabForMode(currentMode);
+            getPreferences(MODE_PRIVATE)
+                    .edit()
+                    .putLong(PREF_SELECTED_PROFILE_ID, currentProfileId)
+                    .putString(PREF_APP_MODE, currentMode)
+                    .apply();
+        } else {
+            currentProfileId = resolveProfileId(currentProfileId);
+        }
+        reminderAlertsFlow.refreshSchedules();
+        renderShell();
     }
 
     private String loadAppMode() {
