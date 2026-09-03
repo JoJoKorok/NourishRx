@@ -47,15 +47,39 @@ public class BackupAvatarStoreTest {
         assertEquals(0, directory.exists() ? directory.listFiles().length : 0);
     }
 
+    @Test
+    public void removesEarlierAvatarWhenLaterProfileCannotBePrepared() {
+        File directory = new File(temporaryFolder.getRoot(), "avatars");
+        BackupAvatarStore store = new BackupAvatarStore(directory);
+        List<NourishRxBackup.ProfileRecord> profiles = profilesWithAvatar(
+                Base64.getEncoder().encodeToString("image-data".getBytes(StandardCharsets.UTF_8))
+        );
+        NourishRxBackup.ProfileRecord invalidProfile = profileWithAvatar(2, "Casey", "bad data");
+        profiles.add(invalidProfile);
+
+        assertThrows(BackupImportException.class, () -> store.prepare(profiles));
+
+        assertEquals(0, directory.exists() ? directory.listFiles().length : 0);
+    }
+
     private static List<NourishRxBackup.ProfileRecord> profilesWithAvatar(String base64Data) {
-        NourishRxBackup.ProfileRecord profile = new NourishRxBackup.ProfileRecord();
-        profile.id = 1;
-        profile.name = "Jordan";
-        profile.avatar = new NourishRxBackup.AvatarRecord();
-        profile.avatar.mimeType = "image/png";
-        profile.avatar.base64Data = base64Data;
+        NourishRxBackup.ProfileRecord profile = profileWithAvatar(1, "Jordan", base64Data);
         List<NourishRxBackup.ProfileRecord> profiles = new ArrayList<>();
         profiles.add(profile);
         return profiles;
+    }
+
+    private static NourishRxBackup.ProfileRecord profileWithAvatar(
+            long id,
+            String name,
+            String base64Data
+    ) {
+        NourishRxBackup.ProfileRecord profile = new NourishRxBackup.ProfileRecord();
+        profile.id = id;
+        profile.name = name;
+        profile.avatar = new NourishRxBackup.AvatarRecord();
+        profile.avatar.mimeType = "image/png";
+        profile.avatar.base64Data = base64Data;
+        return profile;
     }
 }
