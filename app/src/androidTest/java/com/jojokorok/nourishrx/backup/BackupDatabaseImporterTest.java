@@ -13,6 +13,7 @@ import com.jojokorok.nourishrx.data.Medication;
 import com.jojokorok.nourishrx.data.MedicationStore;
 import com.jojokorok.nourishrx.data.Profile;
 
+import java.io.File;
 import java.util.Collections;
 import java.util.List;
 
@@ -275,6 +276,11 @@ public class BackupDatabaseImporterTest {
         @Override
         public Context getApplicationContext() {
             return this;
+        }
+
+        @Override
+        public File getDatabasePath(String name) {
+            return super.getDatabasePath(prefix + name);
         }
 
         @Override

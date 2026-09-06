@@ -13,15 +13,41 @@ public class PremiumManager {
     private static final String KEY_CACHED_PREMIUM_ACTIVE = "cached_premium_active";
     private static final String KEY_CACHED_VERIFIED_AT = "cached_premium_verified_at";
     private static final String KEY_BARCODE_LOOKUPS_USED = "barcode_lookups_used";
+    private static final String KEY_DEBUG_PREMIUM_OVERRIDE = "debug_premium_override";
 
     private final SharedPreferences preferences;
+    private final boolean debugPremiumOverrideAllowed;
 
     public PremiumManager(Context context) {
+        this(context, false);
+    }
+
+    public PremiumManager(Context context, boolean debugPremiumOverrideAllowed) {
         preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.debugPremiumOverrideAllowed = debugPremiumOverrideAllowed;
     }
 
     public boolean isPremiumActive() {
-        return preferences.getBoolean(KEY_CACHED_PREMIUM_ACTIVE, false);
+        return preferences.getBoolean(KEY_CACHED_PREMIUM_ACTIVE, false)
+                || isDebugPremiumOverrideActive();
+    }
+
+    public boolean isDebugPremiumOverrideAllowed() {
+        return debugPremiumOverrideAllowed;
+    }
+
+    public boolean isDebugPremiumOverrideActive() {
+        return debugPremiumOverrideAllowed
+                && preferences.getBoolean(KEY_DEBUG_PREMIUM_OVERRIDE, false);
+    }
+
+    public void setDebugPremiumOverride(boolean active) {
+        if (!debugPremiumOverrideAllowed) {
+            return;
+        }
+        preferences.edit()
+                .putBoolean(KEY_DEBUG_PREMIUM_OVERRIDE, active)
+                .apply();
     }
 
     public boolean canUse(PremiumFeature feature) {

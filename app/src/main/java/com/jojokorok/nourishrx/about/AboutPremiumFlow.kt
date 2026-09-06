@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.jojokorok.nourishrx.R
@@ -29,7 +30,8 @@ class AboutPremiumFlow(
     private val activity: Activity,
     private val ui: NourishUi,
     private val premiumManager: PremiumManager,
-    private val backupCallbacks: BackupCallbacks
+    private val backupCallbacks: BackupCallbacks,
+    private val onAccessChanged: Runnable
 ) {
     interface BackupCallbacks {
         fun exportBackup()
@@ -45,6 +47,9 @@ class AboutPremiumFlow(
         )
         content.addView(brandPanel())
         content.addView(projectCard())
+        if (premiumManager.isDebugPremiumOverrideAllowed) {
+            content.addView(debugAccessCard())
+        }
         content.addView(backupTransferCard())
         content.addView(accessCard())
     }
@@ -277,6 +282,65 @@ class AboutPremiumFlow(
             },
             matchParams(height = 48, topMargin = NourishSpacing.XS)
         )
+    }
+
+    private fun debugAccessCard(): LinearLayout = flatCard().apply {
+        addView(
+            cardHeader(
+                "Debug testing",
+                "Temporary access controls for this debug build"
+            )
+        )
+        addView(
+            messagePanel(
+                "This setting is not included in release builds and does not represent a purchase."
+            ),
+            matchWrapParams(topMargin = NourishSpacing.MD)
+        )
+
+        val labels = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(
+                ui.text(
+                    "Premium test access",
+                    NourishTypography.BODY,
+                    NourishColors.INK,
+                    Typeface.BOLD
+                )
+            )
+            addView(
+                ui.text(
+                    if (premiumManager.isDebugPremiumOverrideActive) "Enabled" else "Disabled",
+                    NourishTypography.CAPTION,
+                    NourishColors.MUTED,
+                    Typeface.NORMAL
+                ),
+                matchWrapParams(topMargin = NourishSpacing.XXS)
+            )
+        }
+        val toggle = Switch(activity).apply {
+            isChecked = premiumManager.isDebugPremiumOverrideActive
+            contentDescription = "Premium test access"
+            setOnCheckedChangeListener { _, enabled ->
+                premiumManager.setDebugPremiumOverride(enabled)
+                Toast.makeText(
+                    activity,
+                    if (enabled) "Premium test access enabled" else "Premium test access disabled",
+                    Toast.LENGTH_SHORT
+                ).show()
+                onAccessChanged.run()
+            }
+        }
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                labels,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(toggle)
+        }
+        addView(row, matchWrapParams(topMargin = NourishSpacing.MD))
     }
 
     private fun premiumAccessSummary(): LinearLayout = LinearLayout(activity).apply {

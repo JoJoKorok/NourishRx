@@ -145,7 +145,10 @@ public class MainActivity extends Activity {
                     }
                 }
         );
-        premiumManager = new PremiumManager(this);
+        premiumManager = new PremiumManager(
+                this,
+                getResources().getBoolean(R.bool.enable_debug_premium_controls)
+        );
         aboutPremiumFlow = new AboutPremiumFlow(
                 this,
                 ui,
@@ -160,7 +163,8 @@ public class MainActivity extends Activity {
                     public void importBackup() {
                         backupImportFlow.startImport();
                     }
-                }
+                },
+                this::renderShell
         );
         nutritionFoodEditorFlow = new NutritionFoodEditorFlow(this, store, ui, nutritionFoodEditorCallbacks());
         nutritionFoodCards = new NutritionFoodCards(this, ui, nutritionFoodCardCallbacks());
