@@ -94,6 +94,12 @@ When Android Studio may be open, use the isolated Windows build command so comma
 
 Isolated build outputs are written under `%LOCALAPPDATA%\NourishRx\cli-build` and use a non-persistent Gradle process.
 
+## Backup and Restore
+
+Premium users can open **About & Premium** and use **Backup & transfer** to export or import a versioned JSON backup. Export includes profiles and photos, medication records, nutrition data, foods, saved meals, water entries, weight entries, and relevant app settings.
+
+When importing, **Merge** adds the backup to existing records while **Replace** removes the current local records before restoring the backup. NourishRx validates the file and shows a summary before making changes. Create a current backup before using Replace, and keep exported files private because they may contain sensitive health information and are not encrypted.
+
 ## Install on Android
 
 Build a debug APK, then install it with Android Studio or `adb`:

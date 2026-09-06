@@ -16,6 +16,12 @@ The app does not include a private OpenFoodFacts API key. OpenFoodFacts public r
 
 The app does not currently include user accounts, remote sync, analytics, or advertising integrations.
 
+## User-Created Backups
+
+NourishRx creates a JSON backup only when the user selects **Export backup** and chooses a destination through Android's file picker. The backup may contain profile photos, medication records, nutrition data, meal history, water entries, weight entries, and app settings.
+
+Backup files are not encrypted by NourishRx. Anyone with access to an exported file may be able to read its contents, so backups should be stored only in a private, trusted location. Importing in Replace mode removes the app's current local records before restoring the selected backup; users should create a current backup first.
+
 ## Sensitive Health Information
 
 Medication and nutrition data can be sensitive. Users should avoid sharing app databases, screenshots, or exported builds that contain personal information.
