@@ -27,6 +27,13 @@ public class ReminderReceiver extends BroadcastReceiver {
         long medicationId = intent.getLongExtra(ReminderScheduler.EXTRA_MEDICATION_ID, -1);
         long scheduledAt = intent.getLongExtra(ReminderScheduler.EXTRA_SCHEDULED_AT, 0);
 
+        if ((ReminderScheduler.ACTION_REMINDER.equals(action)
+                || ReminderScheduler.ACTION_REPEAT_REMINDER.equals(action))
+                && !ReminderScheduler.isCurrentGeneration(context, intent)) {
+            ReminderScheduler.cancelRepeat(context, medicationId, scheduledAt);
+            return;
+        }
+
         if (ReminderScheduler.ACTION_TAKEN.equals(action)) {
             logDose(context, medicationId, scheduledAt, MedicationStore.STATUS_TAKEN);
             return;

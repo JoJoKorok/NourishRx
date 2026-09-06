@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.jojokorok.nourishrx.R
@@ -28,8 +29,15 @@ import com.jojokorok.nourishrx.ui.NourishUi
 class AboutPremiumFlow(
     private val activity: Activity,
     private val ui: NourishUi,
-    private val premiumManager: PremiumManager
+    private val premiumManager: PremiumManager,
+    private val backupCallbacks: BackupCallbacks,
+    private val onAccessChanged: Runnable
 ) {
+    interface BackupCallbacks {
+        fun exportBackup()
+        fun importBackup()
+    }
+
     fun renderAbout(content: LinearLayout) {
         content.addView(
             screenHeader(
@@ -39,6 +47,10 @@ class AboutPremiumFlow(
         )
         content.addView(brandPanel())
         content.addView(projectCard())
+        if (premiumManager.isDebugPremiumOverrideAllowed) {
+            content.addView(debugAccessCard())
+        }
+        content.addView(backupTransferCard())
         content.addView(accessCard())
     }
 
@@ -220,6 +232,115 @@ class AboutPremiumFlow(
                 matchParams(height = 46, topMargin = NourishSpacing.XS)
             )
         }
+    }
+
+    private fun backupTransferCard(): LinearLayout = flatCard().apply {
+        val top = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                cardHeader(
+                    "Backup & transfer",
+                    "Save or restore local NourishRx data"
+                ),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(premiumFeatureBadge(), wrapWrapParams(startMargin = NourishSpacing.SM))
+        }
+        addView(top)
+        addView(
+            infoRow(
+                "Included",
+                "Profiles, medication schedules and dose history, foods and meal logs, saved meals, water, weight, and profile photos."
+            )
+        )
+        addView(
+            infoRow(
+                "Privacy",
+                "Exported JSON files are not encrypted. Keep backups in a private, trusted location."
+            )
+        )
+        addView(
+            ui.button("Export backup", NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
+                setSingleLine(true)
+                setOnClickListener {
+                    if (requirePremium(PremiumFeature.DATA_IMPORT_EXPORT)) {
+                        backupCallbacks.exportBackup()
+                    }
+                }
+            },
+            matchParams(height = 48, topMargin = NourishSpacing.MD)
+        )
+        addView(
+            ui.button("Import backup", NourishColors.BLUE, Color.TRANSPARENT).apply {
+                setSingleLine(true)
+                setOnClickListener {
+                    if (requirePremium(PremiumFeature.DATA_IMPORT_EXPORT)) {
+                        backupCallbacks.importBackup()
+                    }
+                }
+            },
+            matchParams(height = 48, topMargin = NourishSpacing.XS)
+        )
+    }
+
+    private fun debugAccessCard(): LinearLayout = flatCard().apply {
+        addView(
+            cardHeader(
+                "Debug testing",
+                "Temporary access controls for this debug build"
+            )
+        )
+        addView(
+            messagePanel(
+                "This setting is not included in release builds and does not represent a purchase."
+            ),
+            matchWrapParams(topMargin = NourishSpacing.MD)
+        )
+
+        val labels = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(
+                ui.text(
+                    "Premium test access",
+                    NourishTypography.BODY,
+                    NourishColors.INK,
+                    Typeface.BOLD
+                )
+            )
+            addView(
+                ui.text(
+                    if (premiumManager.isDebugPremiumOverrideActive) "Enabled" else "Disabled",
+                    NourishTypography.CAPTION,
+                    NourishColors.MUTED,
+                    Typeface.NORMAL
+                ),
+                matchWrapParams(topMargin = NourishSpacing.XXS)
+            )
+        }
+        val toggle = Switch(activity).apply {
+            isChecked = premiumManager.isDebugPremiumOverrideActive
+            contentDescription = "Premium test access"
+            setOnCheckedChangeListener { _, enabled ->
+                premiumManager.setDebugPremiumOverride(enabled)
+                Toast.makeText(
+                    activity,
+                    if (enabled) "Premium test access enabled" else "Premium test access disabled",
+                    Toast.LENGTH_SHORT
+                ).show()
+                onAccessChanged.run()
+            }
+        }
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                labels,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(toggle)
+        }
+        addView(row, matchWrapParams(topMargin = NourishSpacing.MD))
     }
 
     private fun premiumAccessSummary(): LinearLayout = LinearLayout(activity).apply {
@@ -407,6 +528,27 @@ class AboutPremiumFlow(
             )
         }
     }
+
+    private fun premiumFeatureBadge(): TextView =
+        ui.text(
+            "Premium",
+            NourishTypography.CAPTION,
+            NourishColors.GREEN_DARK,
+            Typeface.BOLD
+        ).apply {
+            gravity = Gravity.CENTER
+            setPadding(
+                ui.dp(NourishSpacing.XS),
+                ui.dp(NourishSpacing.XXS),
+                ui.dp(NourishSpacing.XS),
+                ui.dp(NourishSpacing.XXS)
+            )
+            background = ui.rounded(
+                NourishColors.GREEN_SOFT,
+                Color.TRANSPARENT,
+                ui.dp(NourishShapes.RADIUS_CONTROL)
+            )
+        }
 
     private fun messagePanel(message: String): TextView =
         ui.text(
