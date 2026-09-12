@@ -11,6 +11,7 @@ import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryProductDetailsResult;
+import com.android.billingclient.api.QueryPurchasesParams;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +33,8 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
         void onConnectionStateChanged(ConnectionState state, BillingResult result);
 
         void onPremiumProductDetails(BillingResult result, ProductDetails productDetails);
+
+        void onPremiumPurchasesQueried(BillingResult result, List<Purchase> purchases);
 
         void onPurchasesUpdated(BillingResult result, List<Purchase> purchases);
     }
@@ -62,6 +65,7 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
         if (billingClient.isReady()) {
             listener.onConnectionStateChanged(ConnectionState.READY, null);
             queryPremiumProduct();
+            queryPremiumPurchases();
             return;
         }
         if (!connectionInProgress.compareAndSet(false, true)) {
@@ -79,6 +83,7 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
                 if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                     listener.onConnectionStateChanged(ConnectionState.READY, result);
                     queryPremiumProduct();
+                    queryPremiumPurchases();
                 } else {
                     listener.onConnectionStateChanged(ConnectionState.UNAVAILABLE, result);
                 }
@@ -103,6 +108,17 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(purchases));
         listener.onPurchasesUpdated(result, snapshot);
+    }
+
+    public void refreshPurchases() {
+        if (closed.get()) {
+            return;
+        }
+        if (!billingClient.isReady()) {
+            connect();
+            return;
+        }
+        queryPremiumPurchases();
     }
 
     private void queryPremiumProduct() {
@@ -134,6 +150,19 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
             }
         }
         listener.onPremiumProductDetails(result, premiumProduct);
+    }
+
+    private void queryPremiumPurchases() {
+        QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.INAPP)
+                .build();
+        billingClient.queryPurchasesAsync(params, (result, purchases) -> {
+            if (closed.get()) {
+                return;
+            }
+            List<Purchase> snapshot = Collections.unmodifiableList(new ArrayList<>(purchases));
+            listener.onPremiumPurchasesQueried(result, snapshot);
+        });
     }
 
     @Override

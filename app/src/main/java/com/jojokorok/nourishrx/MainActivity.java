@@ -41,6 +41,7 @@ import com.jojokorok.nourishrx.nutrition.NutritionMealFlow;
 import com.jojokorok.nourishrx.nutrition.NutritionScreens;
 import com.jojokorok.nourishrx.nutrition.NutritionTrackingFlow;
 import com.jojokorok.nourishrx.nutrition.OpenFoodFactsFlow;
+import com.jojokorok.nourishrx.premium.PremiumBillingCoordinator;
 import com.jojokorok.nourishrx.premium.PremiumManager;
 import com.jojokorok.nourishrx.profiles.ProfileManagementFlow;
 import com.jojokorok.nourishrx.profiles.ProfilePhotoFlow;
@@ -77,6 +78,7 @@ public class MainActivity extends Activity {
 
     private MedicationStore store;
     private PremiumManager premiumManager;
+    private PremiumBillingCoordinator premiumBillingCoordinator;
     private NourishUi ui;
     private AppShellFlow appShellFlow;
     private AboutPremiumFlow aboutPremiumFlow;
@@ -191,12 +193,18 @@ public class MainActivity extends Activity {
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
         reminderAlertsFlow = new ReminderAlertsFlow(this, REQUEST_NOTIFICATIONS, this::renderShell);
         appShellFlow = new AppShellFlow(this, store, ui, zoneId, appShellCallbacks());
+        premiumBillingCoordinator = new PremiumBillingCoordinator(
+                this,
+                premiumManager,
+                this::renderShell
+        );
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
         applyReminderProfileIntent(getIntent());
         reminderAlertsFlow.initialize();
         renderShell();
+        premiumBillingCoordinator.start();
     }
 
     @Override
@@ -214,6 +222,7 @@ public class MainActivity extends Activity {
         if (store != null) {
             currentProfileId = resolveProfileId(currentProfileId);
             reminderAlertsFlow.refreshSchedules();
+            premiumBillingCoordinator.refresh();
             renderShell();
         }
     }
@@ -255,6 +264,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        premiumBillingCoordinator.close();
         backupExportFlow.close();
         backupImportFlow.close();
         super.onDestroy();
