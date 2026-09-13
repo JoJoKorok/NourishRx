@@ -7,13 +7,16 @@ import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Reconciles locally cached Premium access with purchases reported by Google Play. */
 public final class PremiumBillingCoordinator implements PlayBillingClient.Listener, AutoCloseable {
     private final PremiumManager premiumManager;
     private final Runnable entitlementChanged;
     private final PlayBillingClient billingClient;
+    private final Set<String> acknowledgementsInFlight = new HashSet<>();
 
     public PremiumBillingCoordinator(
             Context context,
@@ -38,7 +41,10 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
             PlayBillingClient.ConnectionState state,
             BillingResult result
     ) {
-        // Connection errors leave the last successfully reconciled entitlement intact.
+        if (state == PlayBillingClient.ConnectionState.DISCONNECTED
+                || state == PlayBillingClient.ConnectionState.UNAVAILABLE) {
+            acknowledgementsInFlight.clear();
+        }
     }
 
     @Override
@@ -54,6 +60,7 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
 
         boolean wasPremium = premiumManager.isPremiumActive();
         boolean premiumOwned = false;
+        boolean acknowledgementPending = false;
         for (Purchase purchase : purchases) {
             if (PremiumPurchaseEvaluator.grantsPremium(
                     purchase.getProducts(),
@@ -61,13 +68,29 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
                     purchase.isAcknowledged()
             )) {
                 premiumOwned = true;
-                break;
+            } else if (PremiumPurchaseEvaluator.requiresAcknowledgement(
+                    purchase.getProducts(),
+                    purchase.getPurchaseState(),
+                    purchase.isAcknowledged()
+            )) {
+                acknowledgementPending = true;
+                acknowledge(purchase);
             }
         }
 
-        premiumManager.cachePremiumEntitlement(premiumOwned, System.currentTimeMillis());
-        if (wasPremium != premiumManager.isPremiumActive()) {
-            entitlementChanged.run();
+        if (premiumOwned || !acknowledgementPending) {
+            premiumManager.cachePremiumEntitlement(premiumOwned, System.currentTimeMillis());
+            if (wasPremium != premiumManager.isPremiumActive()) {
+                entitlementChanged.run();
+            }
+        }
+    }
+
+    @Override
+    public void onPremiumPurchaseAcknowledged(BillingResult result, String purchaseToken) {
+        acknowledgementsInFlight.remove(purchaseToken);
+        if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+            billingClient.refreshPurchases();
         }
     }
 
@@ -80,6 +103,17 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
 
     @Override
     public void close() {
+        acknowledgementsInFlight.clear();
         billingClient.close();
+    }
+
+    private void acknowledge(Purchase purchase) {
+        String purchaseToken = purchase.getPurchaseToken();
+        if (acknowledgementsInFlight.add(purchaseToken)) {
+            boolean started = billingClient.acknowledgePremiumPurchase(purchaseToken);
+            if (!started) {
+                acknowledgementsInFlight.remove(purchaseToken);
+            }
+        }
     }
 }

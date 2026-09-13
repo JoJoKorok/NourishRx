@@ -14,9 +14,23 @@ public final class PremiumPurchaseEvaluator {
             int purchaseState,
             boolean acknowledged
     ) {
+        return isCompletedPremiumPurchase(productIds, purchaseState) && acknowledged;
+    }
+
+    public static boolean requiresAcknowledgement(
+            Collection<String> productIds,
+            int purchaseState,
+            boolean acknowledged
+    ) {
+        return isCompletedPremiumPurchase(productIds, purchaseState) && !acknowledged;
+    }
+
+    private static boolean isCompletedPremiumPurchase(
+            Collection<String> productIds,
+            int purchaseState
+    ) {
         return productIds != null
                 && productIds.contains(PremiumManager.PREMIUM_PRODUCT_ID)
-                && purchaseState == Purchase.PurchaseState.PURCHASED
-                && acknowledged;
+                && purchaseState == Purchase.PurchaseState.PURCHASED;
     }
 }

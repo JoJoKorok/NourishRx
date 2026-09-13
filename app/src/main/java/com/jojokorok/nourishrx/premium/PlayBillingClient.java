@@ -2,6 +2,7 @@ package com.jojokorok.nourishrx.premium;
 
 import android.content.Context;
 
+import com.android.billingclient.api.AcknowledgePurchaseParams;
 import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingResult;
@@ -35,6 +36,8 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
         void onPremiumProductDetails(BillingResult result, ProductDetails productDetails);
 
         void onPremiumPurchasesQueried(BillingResult result, List<Purchase> purchases);
+
+        void onPremiumPurchaseAcknowledged(BillingResult result, String purchaseToken);
 
         void onPurchasesUpdated(BillingResult result, List<Purchase> purchases);
     }
@@ -119,6 +122,21 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
             return;
         }
         queryPremiumPurchases();
+    }
+
+    public boolean acknowledgePremiumPurchase(String purchaseToken) {
+        if (closed.get() || !billingClient.isReady()) {
+            return false;
+        }
+        AcknowledgePurchaseParams params = AcknowledgePurchaseParams.newBuilder()
+                .setPurchaseToken(purchaseToken)
+                .build();
+        billingClient.acknowledgePurchase(params, result -> {
+            if (!closed.get()) {
+                listener.onPremiumPurchaseAcknowledged(result, purchaseToken);
+            }
+        });
+        return true;
     }
 
     private void queryPremiumProduct() {

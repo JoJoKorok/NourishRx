@@ -45,4 +45,31 @@ public class PremiumPurchaseEvaluatorTest {
                 true
         ));
     }
+
+    @Test
+    public void completedPremiumPurchaseRequiresAcknowledgement() {
+        assertTrue(PremiumPurchaseEvaluator.requiresAcknowledgement(
+                Collections.singletonList(PremiumManager.PREMIUM_PRODUCT_ID),
+                Purchase.PurchaseState.PURCHASED,
+                false
+        ));
+    }
+
+    @Test
+    public void pendingPurchaseDoesNotRequireAcknowledgement() {
+        assertFalse(PremiumPurchaseEvaluator.requiresAcknowledgement(
+                Collections.singletonList(PremiumManager.PREMIUM_PRODUCT_ID),
+                Purchase.PurchaseState.PENDING,
+                false
+        ));
+    }
+
+    @Test
+    public void unrelatedPurchaseDoesNotRequireAcknowledgement() {
+        assertFalse(PremiumPurchaseEvaluator.requiresAcknowledgement(
+                Collections.singletonList("another_product"),
+                Purchase.PurchaseState.PURCHASED,
+                false
+        ));
+    }
 }
