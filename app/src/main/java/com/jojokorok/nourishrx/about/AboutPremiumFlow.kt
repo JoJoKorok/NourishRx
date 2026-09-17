@@ -17,8 +17,10 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.jojokorok.nourishrx.R
+import com.jojokorok.nourishrx.premium.PremiumBillingCoordinator
 import com.jojokorok.nourishrx.premium.PremiumFeature
 import com.jojokorok.nourishrx.premium.PremiumManager
+import com.jojokorok.nourishrx.premium.PremiumOfferState
 import com.jojokorok.nourishrx.premium.PremiumTier
 import com.jojokorok.nourishrx.ui.NourishColors
 import com.jojokorok.nourishrx.ui.NourishShapes
@@ -30,6 +32,7 @@ class AboutPremiumFlow(
     private val activity: Activity,
     private val ui: NourishUi,
     private val premiumManager: PremiumManager,
+    private val premiumBillingCoordinator: PremiumBillingCoordinator,
     private val backupCallbacks: BackupCallbacks,
     private val onAccessChanged: Runnable
 ) {
@@ -62,7 +65,7 @@ class AboutPremiumFlow(
 
     fun showPremiumFeatureDialog(feature: PremiumFeature) {
         val accessNote = if (feature.tier == PremiumTier.ONE_TIME_PREMIUM) {
-            "This feature is planned for the one-time NourishRx Premium unlock. Google Play Billing is not connected in this build yet."
+            premiumOfferSummary()
         } else {
             "This feature is planned for a future sync subscription, separate from the one-time Premium unlock."
         }
@@ -84,14 +87,14 @@ class AboutPremiumFlow(
             addView(
                 dialogHeader(
                     "NourishRx Premium",
-                    "Compare the planned one-time unlock with future sync access."
+                    "Compare the one-time unlock with future sync access."
                 )
             )
             addView(premiumAccessSummary(), matchWrapParams(topMargin = NourishSpacing.MD))
             addView(
                 featureGroup(
                     "One-time Premium",
-                    "Planned as a single Google Play purchase.",
+                    premiumOfferSummary(),
                     PremiumTier.ONE_TIME_PREMIUM
                 )
             )
@@ -103,7 +106,7 @@ class AboutPremiumFlow(
                 )
             )
             addView(
-                messagePanel("Purchases are not available until Google Play Billing is connected."),
+                messagePanel("Premium purchases and restoration are handled by Google Play."),
                 matchWrapParams(topMargin = NourishSpacing.LG)
             )
         }
@@ -115,8 +118,8 @@ class AboutPremiumFlow(
             .setView(scrollView)
             .setNegativeButton("Close", null)
         if (!premiumManager.isPremiumActive()) {
-            builder.setPositiveButton("Availability") { _, _ ->
-                showPremiumPurchaseUnavailableDialog()
+            builder.setPositiveButton(premiumOfferActionLabel()) { _, _ ->
+                showPremiumAvailabilityDialog()
             }
         }
         val dialog = builder.create()
@@ -210,6 +213,7 @@ class AboutPremiumFlow(
                 "${premiumManager.premiumProductLabel()} - ${premiumManager.purchaseModelLabel()}"
             )
         )
+        addView(infoRow("Google Play", premiumOfferSummary()))
         addView(
             infoRow(
                 "Future sync",
@@ -225,9 +229,9 @@ class AboutPremiumFlow(
         )
         if (!premiumManager.isPremiumActive()) {
             addView(
-                ui.button("Premium availability", NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
+                ui.button(premiumOfferActionLabel(), NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
                     setSingleLine(true)
-                    setOnClickListener { showPremiumPurchaseUnavailableDialog() }
+                    setOnClickListener { showPremiumAvailabilityDialog() }
                 },
                 matchParams(height = 46, topMargin = NourishSpacing.XS)
             )
@@ -454,12 +458,12 @@ class AboutPremiumFlow(
         )
     }
 
-    private fun showPremiumPurchaseUnavailableDialog() {
+    private fun showPremiumAvailabilityDialog() {
         val body = dialogBody().apply {
             addView(
                 dialogHeader(
                     "Premium availability",
-                    premiumManager.purchaseUnavailableMessage()
+                    premiumOfferSummary()
                 )
             )
         }
@@ -470,6 +474,24 @@ class AboutPremiumFlow(
         dialog.setOnShowListener { styleDialogActions(dialog) }
         dialog.show()
     }
+
+    private fun premiumOfferSummary(): String {
+        val offer = premiumBillingCoordinator.premiumOffer()
+        return when (offer.status) {
+            PremiumOfferState.Status.CHECKING -> "Checking availability with Google Play..."
+            PremiumOfferState.Status.AVAILABLE ->
+                "Available as a one-time Google Play purchase for ${offer.formattedPrice}."
+            PremiumOfferState.Status.UNAVAILABLE ->
+                "Not currently available through Google Play on this device."
+        }
+    }
+
+    private fun premiumOfferActionLabel(): String =
+        if (premiumBillingCoordinator.premiumOffer().status == PremiumOfferState.Status.AVAILABLE) {
+            "View Premium price"
+        } else {
+            "Premium availability"
+        }
 
     private fun screenHeader(title: String, subtitle: String): LinearLayout =
         LinearLayout(activity).apply {

@@ -151,10 +151,16 @@ public class MainActivity extends Activity {
                 this,
                 getResources().getBoolean(R.bool.enable_debug_premium_controls)
         );
+        premiumBillingCoordinator = new PremiumBillingCoordinator(
+                this,
+                premiumManager,
+                this::renderShell
+        );
         aboutPremiumFlow = new AboutPremiumFlow(
                 this,
                 ui,
                 premiumManager,
+                premiumBillingCoordinator,
                 new AboutPremiumFlow.BackupCallbacks() {
                     @Override
                     public void exportBackup() {
@@ -193,11 +199,6 @@ public class MainActivity extends Activity {
         profileManagementFlow = new ProfileManagementFlow(this, store, ui, profileCallbacks());
         reminderAlertsFlow = new ReminderAlertsFlow(this, REQUEST_NOTIFICATIONS, this::renderShell);
         appShellFlow = new AppShellFlow(this, store, ui, zoneId, appShellCallbacks());
-        premiumBillingCoordinator = new PremiumBillingCoordinator(
-                this,
-                premiumManager,
-                this::renderShell
-        );
         currentProfileId = loadSelectedProfileId();
         currentMode = loadAppMode();
         currentTab = defaultTabForMode(currentMode);
