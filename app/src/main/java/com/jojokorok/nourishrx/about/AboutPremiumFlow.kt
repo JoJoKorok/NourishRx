@@ -21,6 +21,7 @@ import com.jojokorok.nourishrx.premium.PremiumBillingCoordinator
 import com.jojokorok.nourishrx.premium.PremiumFeature
 import com.jojokorok.nourishrx.premium.PremiumManager
 import com.jojokorok.nourishrx.premium.PremiumOfferState
+import com.jojokorok.nourishrx.premium.PremiumPurchaseLaunchResult
 import com.jojokorok.nourishrx.premium.PremiumTier
 import com.jojokorok.nourishrx.ui.NourishColors
 import com.jojokorok.nourishrx.ui.NourishShapes
@@ -119,7 +120,7 @@ class AboutPremiumFlow(
             .setNegativeButton("Close", null)
         if (!premiumManager.isPremiumActive()) {
             builder.setPositiveButton(premiumOfferActionLabel()) { _, _ ->
-                showPremiumAvailabilityDialog()
+                handlePremiumAction()
             }
         }
         val dialog = builder.create()
@@ -231,7 +232,7 @@ class AboutPremiumFlow(
             addView(
                 ui.button(premiumOfferActionLabel(), NourishColors.ON_ACCENT, NourishColors.GREEN).apply {
                     setSingleLine(true)
-                    setOnClickListener { showPremiumAvailabilityDialog() }
+                    setOnClickListener { handlePremiumAction() }
                 },
                 matchParams(height = 46, topMargin = NourishSpacing.XS)
             )
@@ -488,10 +489,29 @@ class AboutPremiumFlow(
 
     private fun premiumOfferActionLabel(): String =
         if (premiumBillingCoordinator.premiumOffer().status == PremiumOfferState.Status.AVAILABLE) {
-            "View Premium price"
+            "Buy Premium - ${premiumBillingCoordinator.premiumOffer().formattedPrice}"
         } else {
             "Premium availability"
         }
+
+    private fun handlePremiumAction() {
+        if (premiumBillingCoordinator.premiumOffer().status != PremiumOfferState.Status.AVAILABLE) {
+            showPremiumAvailabilityDialog()
+            return
+        }
+        when (premiumBillingCoordinator.launchPremiumPurchase(activity)) {
+            PremiumPurchaseLaunchResult.STARTED -> Unit
+            PremiumPurchaseLaunchResult.ALREADY_OWNED -> {
+                Toast.makeText(activity, "Premium access is already active.", Toast.LENGTH_SHORT).show()
+                onAccessChanged.run()
+            }
+            PremiumPurchaseLaunchResult.OFFER_UNAVAILABLE -> showPremiumAvailabilityDialog()
+            PremiumPurchaseLaunchResult.BILLING_UNAVAILABLE ->
+                Toast.makeText(activity, "Google Play is not ready. Try again shortly.", Toast.LENGTH_SHORT).show()
+            PremiumPurchaseLaunchResult.FAILED ->
+                Toast.makeText(activity, "Google Play could not start the purchase.", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private fun screenHeader(title: String, subtitle: String): LinearLayout =
         LinearLayout(activity).apply {

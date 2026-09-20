@@ -1,10 +1,12 @@
 package com.jojokorok.nourishrx.premium;
 
+import android.app.Activity;
 import android.content.Context;
 
 import com.android.billingclient.api.AcknowledgePurchaseParams;
 import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
+import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.PendingPurchasesParams;
 import com.android.billingclient.api.ProductDetails;
@@ -137,6 +139,31 @@ public final class PlayBillingClient implements PurchasesUpdatedListener, AutoCl
             }
         });
         return true;
+    }
+
+    public BillingResult launchPremiumPurchase(
+            Activity activity,
+            ProductDetails productDetails,
+            String offerToken
+    ) {
+        if (closed.get() || !billingClient.isReady()) {
+            return BillingResult.newBuilder()
+                    .setResponseCode(BillingClient.BillingResponseCode.SERVICE_DISCONNECTED)
+                    .setDebugMessage("Google Play Billing is not connected")
+                    .build();
+        }
+        BillingFlowParams.ProductDetailsParams.Builder productParams =
+                BillingFlowParams.ProductDetailsParams.newBuilder()
+                        .setProductDetails(productDetails);
+        if (offerToken != null && !offerToken.isEmpty()) {
+            productParams.setOfferToken(offerToken);
+        }
+        BillingFlowParams params = BillingFlowParams.newBuilder()
+                .setProductDetailsParamsList(
+                        Collections.singletonList(productParams.build())
+                )
+                .build();
+        return billingClient.launchBillingFlow(activity, params);
     }
 
     private void queryPremiumProduct() {

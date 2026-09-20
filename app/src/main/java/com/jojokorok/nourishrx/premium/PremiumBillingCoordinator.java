@@ -1,5 +1,6 @@
 package com.jojokorok.nourishrx.premium;
 
+import android.app.Activity;
 import android.content.Context;
 
 import com.android.billingclient.api.BillingClient;
@@ -18,6 +19,8 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
     private final PlayBillingClient billingClient;
     private final Set<String> acknowledgementsInFlight = new HashSet<>();
     private PremiumOfferState premiumOffer = PremiumOfferState.checking();
+    private ProductDetails premiumProductDetails;
+    private String premiumOfferToken = "";
 
     public PremiumBillingCoordinator(
             Context context,
@@ -41,6 +44,30 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
         return premiumOffer;
     }
 
+    public PremiumPurchaseLaunchResult launchPremiumPurchase(Activity activity) {
+        if (premiumManager.isPremiumActive()) {
+            return PremiumPurchaseLaunchResult.ALREADY_OWNED;
+        }
+        if (premiumOffer.getStatus() != PremiumOfferState.Status.AVAILABLE
+                || premiumProductDetails == null) {
+            return PremiumPurchaseLaunchResult.OFFER_UNAVAILABLE;
+        }
+        BillingResult result = billingClient.launchPremiumPurchase(
+                activity,
+                premiumProductDetails,
+                premiumOfferToken
+        );
+        PremiumPurchaseLaunchResult launchResult =
+                PremiumPurchaseLaunchResult.fromBillingResponse(result.getResponseCode());
+        if (launchResult == PremiumPurchaseLaunchResult.ALREADY_OWNED) {
+            billingClient.refreshPurchases();
+        } else if (launchResult == PremiumPurchaseLaunchResult.OFFER_UNAVAILABLE) {
+            clearPremiumProduct();
+            updatePremiumOffer(PremiumOfferState.unavailable());
+        }
+        return launchResult;
+    }
+
     @Override
     public void onConnectionStateChanged(
             PlayBillingClient.ConnectionState state,
@@ -52,8 +79,10 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
         }
         if (state == PlayBillingClient.ConnectionState.CONNECTING
                 || state == PlayBillingClient.ConnectionState.DISCONNECTED) {
+            clearPremiumProduct();
             updatePremiumOffer(PremiumOfferState.checking());
         } else if (state == PlayBillingClient.ConnectionState.UNAVAILABLE) {
+            clearPremiumProduct();
             updatePremiumOffer(PremiumOfferState.unavailable());
         }
     }
@@ -63,13 +92,15 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
         if (result.getResponseCode() != BillingClient.BillingResponseCode.OK
                 || productDetails == null
                 || productDetails.getOneTimePurchaseOfferDetailsList().isEmpty()) {
+            clearPremiumProduct();
             updatePremiumOffer(PremiumOfferState.unavailable());
             return;
         }
-        String formattedPrice = productDetails.getOneTimePurchaseOfferDetailsList()
-                .get(0)
-                .getFormattedPrice();
-        updatePremiumOffer(PremiumOfferState.available(formattedPrice));
+        ProductDetails.OneTimePurchaseOfferDetails offer =
+                productDetails.getOneTimePurchaseOfferDetailsList().get(0);
+        premiumProductDetails = productDetails;
+        premiumOfferToken = offer.getOfferToken();
+        updatePremiumOffer(PremiumOfferState.available(offer.getFormattedPrice()));
     }
 
     @Override
@@ -142,5 +173,10 @@ public final class PremiumBillingCoordinator implements PlayBillingClient.Listen
             premiumOffer = updatedOffer;
             stateChanged.run();
         }
+    }
+
+    private void clearPremiumProduct() {
+        premiumProductDetails = null;
+        premiumOfferToken = "";
     }
 }
