@@ -70,12 +70,6 @@ public class PremiumManager {
         return PREMIUM_PURCHASE_MODEL;
     }
 
-    public String purchaseUnavailableMessage() {
-        return PREMIUM_PRODUCT_NAME
-                + " is planned as a one-time purchase through Google Play Billing. "
-                + "Purchase handling is not connected in this build yet.";
-    }
-
     public int barcodeLookupsUsed() {
         return preferences.getInt(KEY_BARCODE_LOOKUPS_USED, 0);
     }
